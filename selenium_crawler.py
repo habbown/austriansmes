@@ -11,12 +11,20 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 import selenium.common.exceptions
+import csv
 
 locale.setlocale(locale.LC_ALL, '')
 from selenium import webdriver
 
-suchwort_liste = ["Neulandschulsiedlung", "Hallo Asia", "haller felsinger", "casa service reisenbauer",
-                  "Fridolin Schipflinger", "Hotel Fliana", "copa data", "meine hausverwaltung", "mebus"]
+suchwort_liste = []
+
+with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
+    csvreader = csv.DictReader(csvfile)
+    for row in csvreader:
+        suchwort_liste.append(row["Company Name"])
+
+suchwort_liste = suchwort_liste[:10]
+
 username = logindata.username
 password = logindata.password
 
@@ -40,6 +48,7 @@ login_button.click()
 # startseite_button = driver.find_element_by_xpath("//input[@type='submit']")
 # startseite_button.click()
 
+
 for suchwort in suchwort_liste:
     driver.get("https://daten.compass.at/FirmenCompass/")
     suchwort_box = driver.find_element_by_name('suchwort')
@@ -62,13 +71,16 @@ for suchwort in suchwort_liste:
     profile_soup = BeautifulSoup(profile, 'html.parser')
 
     # what if we don't have a unique search result
-    #if profile_soup.find('div', attrs={'id': 'result_summary'}) != None and "Es wurden keine" in profile_soup.find(
-      #      'div', attrs={'id': 'result_summary'}):
-     #   continue
+    # if profile_soup.find('div', attrs={'id': 'result_summary'}) != None and "Es wurden keine" in profile_soup.find(
+    #      'div', attrs={'id': 'result_summary'}):
+    #   continue
 
     values = crawler.extract_values_from_profile(profile_soup)
 
-    open_abschluesse = driver.find_element_by_xpath("//a[@data-toggle='#toggle-jahresabschluss']")
+    try:
+        open_abschluesse = driver.find_element_by_xpath("//a[@data-toggle='#toggle-jahresabschluss']")
+    except selenium.common.exceptions.NoSuchElementException:
+        continue
     open_abschluesse.click()
 
     abschluesse_list = driver.find_elements_by_name("erstellen")
@@ -85,5 +97,6 @@ for suchwort in suchwort_liste:
         values.update(values1)
         driver.close()
         driver.switch_to.window(main_window)
-
     pprint.pprint(values)
+
+# how to write to csv?, dict writer doesn't work because we don't know all field names upfront, normal writer with manually checking field names might work but might take longer?

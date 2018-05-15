@@ -96,7 +96,7 @@ def extract_values_from_profile(soup):
                 content_split = content.split(":")
                 if content_split[1] == '  keine':
                     content_split[1] = '0'
-                variablevalue2 = locale.atoi(content_split[1])
+                variablevalue2 = content_split[1] # need to convert to number
                 del content_split[1]
                 variablekey = variablename + content_split[0]
                 variablevalue[variablekey] = variablevalue2
