@@ -33,30 +33,34 @@ def extract_values_from_profile(soup):
             variablevalue = {}
             counter = 0
             type = None
+            value = {}
             for child in variablevalue_children:
                 if child.b != None:
                     type = child.b.text
+                    if '\\' in type:
+                        index = type.find('\\')
+                        type = type[:index]
+                    value['type'] = type
                 if child.a != None:
-                    link = child.a['href']
-                    name = child.a.string
-                    birthdate_index = child.text.find('geb.')
-                    if birthdate_index == -1:
-                        birthdate = None
-                    else:
+                    if child.a != None:
+                        link = child.a['href']
+                        value['link'] = link
+                        name = child.a.string
+                        value['name'] = name
+                    if 'geb.' in child.text:
+                        birthdate_index = child.text.find('geb.')
                         start_index = birthdate_index + 5
                         end_index = birthdate_index + 15
                         birthdate = child.text[start_index:end_index]
-                    anteil_index = child.text.find('Anteil')
-                    if anteil_index == -1:
-                        anteil = None  # in fact, we shouldn't say this but don't include Anteil
-                    else:
+                        value['birthdate'] = birthdate
+                    if 'Anteil' in child.text:
+                        anteil_index = child.text.find('Anteil')
                         percent_index = child.text.find('%')
                         anteil = child.text[anteil_index + 7:percent_index]
-                    comment = None
+                        value['anteil'] = anteil
                     if child.br != None:
                         comment = child.br.string
-                    value = {'type': type, 'link': link, 'name': name, 'anteil': anteil, 'birthdate': birthdate,
-                             'comment': comment}
+                        value['comment'] = comment
                     variablename1 = variablename + str(counter)
                     variablevalue[variablename1] = value
                     counter += 1
@@ -82,7 +86,9 @@ def extract_values_from_profile(soup):
             for grandchild in variablevalue.find_all('a'):
                 link = grandchild['href']
                 name = grandchild.string
-                output[variablename + str(counter)] = {'name': name, 'link': link}
+                value = {'name': name, 'link': link}
+                output[variablename + str(counter)] = value
+            variablevalue = output
         elif variablename in {'Beschäftigte', 'Umsatz', 'EGT'}:
             variablevalues = variablevalue.stripped_strings
             variablevalue = {}
@@ -180,7 +186,11 @@ def extract_values_from_bilanz(soup):
 
     bilanzinfo = soup.find(attrs={'class': 'bilanz-info'})
     for child in bilanzinfo.find_all('div'):
-        values[child.find(attrs={'class': 'title'}).string] = child.find(attrs={'class': 'content'}).string
+        name = child.find(attrs={'class': 'title'}).string
+        index = name.find(':')
+        name = name[:index]
+        name = beautify(name)
+        values[name] = child.find(attrs={'class': 'content'}).string
 
     title = beautify(soup.h3.text)
     div = soup.find('div', attrs={'class': 'bilanz'})
