@@ -1,5 +1,7 @@
 import bs4
 import locale
+import pprint
+import unicode
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -16,54 +18,70 @@ def extract_values_from_profile(soup):
     for child in div_children:
         variablename = child.find('div', attrs={'class': 'label'})
         variablevalue = child.find('div', attrs={'class': 'content'})
-        variablename = beautify(' '.join(list(variablename.stripped_strings)))
+        variablename = ' '.join(list(variablename.stripped_strings))
         if variablevalue.string != None:
             variablevalue = variablevalue.string
+        elif variablename in {'Telefon', 'Fax'}:
+            variablevalue = list(variablevalue.stripped_strings)[0]
         elif variablename in {'Adresse', 'Postanschrift', 'Historische Adressen', 'Historische Firmenwortlaute'}:
             variablevalues = variablevalue.find_all('p')
             if len(variablevalues) != 0:
-                variablevalue = []
+                variablevalue = {}
+                counter = 0
                 for list_element in variablevalues:
                     list_element = '; '.join(list(list_element.stripped_strings))
-                    variablevalue.append(list_element)
+                    variablevalue[str(counter)] = list_element
+                    counter +=1
             else:
                 variablevalue = '; '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Wirtschaftlicher Eigentümer', 'Eigentümer', 'Management', 'Beteiligungen'}:
             variablevalue_children = [x for x in variablevalue.children if not isinstance(x, bs4.NavigableString)]
             variablevalue = {}
             counter = 0
-            type = None
-            value = {}
+            type_of = None
             for child in variablevalue_children:
                 if child.b != None:
-                    type = child.b.text
-                    if '\\' in type:
-                        index = type.find('\\')
-                        type = type[:index]
-                    value['type'] = type
-                if child.a != None:
-                    if child.a != None:
-                        link = child.a['href']
-                        value['link'] = link
-                        name = child.a.string
-                        value['name'] = name
+                    type_of = child.b.text
+                elif child.a != None:
+                    variablevalue[str(counter)] = {}
+                    variablevalue[str(counter)]['type'] = type_of
+                    link = child.a['href']
+                    variablevalue[str(counter)]['link'] = link
+                    name = child.a.string
+                    variablevalue[str(counter)]['name'] = name
                     if 'geb.' in child.text:
                         birthdate_index = child.text.find('geb.')
                         start_index = birthdate_index + 5
                         end_index = birthdate_index + 15
                         birthdate = child.text[start_index:end_index]
-                        value['birthdate'] = birthdate
+                        variablevalue[str(counter)]['birthdate'] = birthdate
                     if 'Anteil' in child.text:
                         anteil_index = child.text.find('Anteil')
                         percent_index = child.text.find('%')
                         anteil = child.text[anteil_index + 7:percent_index]
-                        value['anteil'] = anteil
-                    if child.br != None:
+                        variablevalue[str(counter)]['anteil'] = anteil
+                    if child.br != None and child.br.string != None:
                         comment = child.br.string
-                        value['comment'] = comment
-                    variablename1 = variablename + str(counter)
-                    variablevalue[variablename1] = value
+                        variablevalue[str(counter)]['comment'] = comment
                     counter += 1
+                else:
+                    variablevalue[str(counter)] = {}
+                    variablevalue[str(counter)]['type'] = type_of
+                    if child.stripped_strings != None and list(child.stripped_strings) != []:
+                        if '(' in list(child.stripped_strings)[0]:
+                            parenthesis_open = '('.find(child.text)
+                            parenthesis_close = ')'.find(child.text)
+                            print(str(parenthesis_open))
+                            print(str(parenthesis_close))
+                            comment = child.text[parenthesis_open + 1:parenthesis_close]
+                            print(comment)
+                            name = child.text[:parenthesis_open - 1]
+                            print(comment)
+                            variablevalue[str(counter)] = {'name': name, 'comment': comment}
+                        else:
+                            name = child.text
+                            variablevalue[str(counter)] = {'name': name}
+                        counter += 1
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
             output = {}
@@ -80,14 +98,14 @@ def extract_values_from_profile(soup):
             if ';' in variablevalue:
                 index = variablevalue.find(';')
                 variablevalue = variablevalue[:index]
-        elif variablename in {'Bankverbindung', 'Internet-Adressen'}:
+        elif variablename in {'Bankverbindung', 'Internet-Adressen', 'E-Mail'}:
             output = {}
             counter = 1
             for grandchild in variablevalue.find_all('a'):
                 link = grandchild['href']
                 name = grandchild.string
                 value = {'name': name, 'link': link}
-                output[variablename + str(counter)] = value
+                output[str(counter)] = value
             variablevalue = output
         elif variablename in {'Beschäftigte', 'Umsatz', 'EGT'}:
             variablevalues = variablevalue.stripped_strings
@@ -96,13 +114,12 @@ def extract_values_from_profile(soup):
                 content_split = content.split(":")
                 if content_split[1] == '  keine':
                     content_split[1] = '0'
-                variablevalue2 = content_split[1] # need to convert to number
+                variablevalue2 = content_split[1]  # need to convert to number
                 del content_split[1]
-                variablekey = variablename + content_split[0]
-                variablevalue[variablekey] = variablevalue2
+                variablevalue[content_split[0]] = variablevalue2
         else:
             continue
-        values[variablename] = variablevalue
+        values[beautify(variablename)] = variablevalue
     return values  # want to flatten out dictionary first and improve some minor errors (type for Eigentümer and so on)
 
 
@@ -164,14 +181,14 @@ def extract_values_from_div(div, prefix=[], values={}):
         if child.name == 'h3':
             title = beautify(child.string)
         elif child.name == 'div':
-            extract_values_from_div(child, prefix + [title], values)
+            extract_values_from_div(child, prefix , values)
         elif child.name == 'table':
             if ('class', ['header']) in child.attrs.items():
                 continue
             elif ('class', ['bilanz-footer']) in child.attrs.items():
-                extract_values_from_table(child, prefix + [title], values)
+                extract_values_from_table(child, prefix, values)
             elif child.attrs == {}:
-                extract_values_from_table(child, prefix + [title], values)
+                extract_values_from_table(child, prefix, values)
 
 
 def extract_values_from_bilanz(soup):
@@ -184,15 +201,16 @@ def extract_values_from_bilanz(soup):
     fn = fn.string[3:]
     values["FN"] = fn
 
+    title = beautify(soup.h3.text)
+
     bilanzinfo = soup.find(attrs={'class': 'bilanz-info'})
     for child in bilanzinfo.find_all('div'):
         name = child.find(attrs={'class': 'title'}).string
         index = name.find(':')
         name = name[:index]
         name = beautify(name)
-        values[name] = child.find(attrs={'class': 'content'}).string
+        values[title + '_' + name] = child.find(attrs={'class': 'content'}).string
 
-    title = beautify(soup.h3.text)
     div = soup.find('div', attrs={'class': 'bilanz'})
 
     extract_values_from_div(div, prefix=[title], values=values)

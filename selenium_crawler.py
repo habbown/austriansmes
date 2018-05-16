@@ -1,4 +1,4 @@
-# needs a file logindata.p
+# needs a file logindata.python
 
 from bs4 import BeautifulSoup
 import locale
@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 import selenium.common.exceptions
 import csv
+import pprint
 
 locale.setlocale(locale.LC_ALL, '')
 from selenium import webdriver
@@ -23,7 +24,7 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         suchwort_liste.append(row["Company Name"])
 
-suchwort_liste = suchwort_liste[:10]
+suchwort_liste = suchwort_liste[:2]
 
 username = logindata.username
 password = logindata.password
@@ -60,7 +61,7 @@ for suchwort in suchwort_liste:
     # this is certainly not ideal, but what is?; is there an element on the page which always is the last to be loaded?
 
     try:
-        WebDriverWait(driver, 5).until(
+        WebDriverWait(driver, 10).until(
             expected_conditions.presence_of_element_located((By.ID, "toggle-beschaeftigte"))
         )
     except selenium.common.exceptions.TimeoutException:
@@ -88,7 +89,7 @@ for suchwort in suchwort_liste:
         abschluss_link.click()
         new_window = [window for window in driver.window_handles if window != main_window][0]
         driver.switch_to.window(new_window)
-        WebDriverWait(driver, 5).until(
+        WebDriverWait(driver, 10).until(
             expected_conditions.presence_of_element_located((By.CLASS_NAME, "passiva"))
         )
         abschluss = driver.page_source
@@ -99,4 +100,4 @@ for suchwort in suchwort_liste:
         driver.switch_to.window(main_window)
     pprint.pprint(values)
 
-# how to write to csv?, dict writer doesn't work because we don't know all field names upfront, normal writer with manually checking field names might work but might take longer?
+# save in list, write out to file after every 100th (or something like that) company
