@@ -1,7 +1,7 @@
 import bs4
 import locale
 import pprint
-import unicode
+import re
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -31,7 +31,7 @@ def extract_values_from_profile(soup):
                 for list_element in variablevalues:
                     list_element = '; '.join(list(list_element.stripped_strings))
                     variablevalue[str(counter)] = list_element
-                    counter +=1
+                    counter += 1
             else:
                 variablevalue = '; '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Wirtschaftlicher Eigentümer', 'Eigentümer', 'Management', 'Beteiligungen'}:
@@ -64,35 +64,40 @@ def extract_values_from_profile(soup):
                         comment = child.br.string
                         variablevalue[str(counter)]['comment'] = comment
                     counter += 1
-                else:
+                elif child.stripped_strings != None and list(child.stripped_strings) != []:
                     variablevalue[str(counter)] = {}
                     variablevalue[str(counter)]['type'] = type_of
-                    if child.stripped_strings != None and list(child.stripped_strings) != []:
-                        if '(' in list(child.stripped_strings)[0]:
-                            parenthesis_open = '('.find(child.text)
-                            parenthesis_close = ')'.find(child.text)
-                            print(str(parenthesis_open))
-                            print(str(parenthesis_close))
-                            comment = child.text[parenthesis_open + 1:parenthesis_close]
-                            print(comment)
-                            name = child.text[:parenthesis_open - 1]
-                            print(comment)
-                            variablevalue[str(counter)] = {'name': name, 'comment': comment}
-                        else:
-                            name = child.text
-                            variablevalue[str(counter)] = {'name': name}
-                        counter += 1
+                    if '(' in list(child.stripped_strings)[0]:
+                        parenthesis_open = list(child.stripped_strings)[0].find('(')
+                        parenthesis_close = list(child.stripped_strings)[0].find(')')
+                        comment = list(child.stripped_strings)[0][parenthesis_open + 1:parenthesis_close]
+                        name = list(child.stripped_strings)[0][:parenthesis_open - 1]
+                        variablevalue[str(counter)]['name'] = name
+                        variablevalue[str(counter)]['comment'] = comment
+                    else:
+                        name = child.text
+                        variablevalue[str(counter)]['name'] = name
+                    counter += 1
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
-            output = {}
+            variablevalue = {}
+            counter = 0
             for content in kapital:
-                content_split = content.split(" ")
-                variablevalue = locale.atof(content_split[1])
-                del content_split[1]
-                variablename1 = ' '.join(content_split)
-                variablename1 = variablename + '.' + variablename1
-                output[variablename1] = variablevalue
-            variablevalue = output
+                variablevalue[str(counter)] = {}
+                currencysymbol = re.compile('[A-Z]{3}')
+                currency_re = currencysymbol.search(content)
+                currency = currency_re.group()
+                variablevalue[str(counter)]['currency'] = currency
+                content = content.replace(currency, '')
+                value_pattern = re.compile('[0-9,.]+')
+                value_re = value_pattern.search(content)
+                value =locale.atof( value_re.group())
+                variablevalue[str(counter)]['value'] = value
+                content = content.replace(value, '')
+                content = content.strip()
+                if content != '':
+                    variablevalue[str(counter)]['comment'] = content
+                counter += 1
         elif variablename in {'Gericht', 'UID'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
             if ';' in variablevalue:
@@ -110,13 +115,35 @@ def extract_values_from_profile(soup):
         elif variablename in {'Beschäftigte', 'Umsatz', 'EGT'}:
             variablevalues = variablevalue.stripped_strings
             variablevalue = {}
+            counter = 0
             for content in variablevalues:
-                content_split = content.split(":")
-                if content_split[1] == '  keine':
-                    content_split[1] = '0'
-                variablevalue2 = content_split[1]  # need to convert to number
-                del content_split[1]
-                variablevalue[content_split[0]] = variablevalue2
+                variablevalue[str(counter)] = {}
+                find_year = re.compile('[0-9/]*')
+                year_re = find_year.match(content)
+                if year_re:
+                    year = year_re.group()
+                    variablevalue[str(counter)]['year'] = year
+                    content = content.replace(year, '')
+                index_of_colon = content.find(':')
+                if index_of_colon not in [-1, 0]:
+                    comment1 = content[:index_of_colon]
+                    variablevalue[str(counter)]['comment1'] = comment1
+                content = content.replace(re.compile(':? *').match(content).group(), '')
+                value_re = re.compile('-?[0-9,.]+').match(content)
+                if value_re:
+                    value = locale.atof(value_re.group())
+                    variablevalue[str(counter)]['value'] = value
+                    content = content.replace(value, '')
+                    content = content.lstrip()
+                currencysymbol = re.compile('[A-Z]{3}')
+                currency_re = currencysymbol.search(content)
+                if currency_re:
+                    currency = currency_re.group()
+                    variablevalue[str(counter)]['currency'] = currency
+                    variablevalue[str(counter)]['unit'] = content[:currency_re.start()]
+                    if content[currency_re.end():].strip()[1:-1] != ''
+                        variablevalue[str(counter)]['comment2'] = content[currency_re.end():].strip()[1:-1]
+                counter += 1
         else:
             continue
         values[beautify(variablename)] = variablevalue
@@ -145,7 +172,7 @@ def extract_values_from_table(table, prefix=[], values={}):
                 title = beautify(tr.find('td', attrs={'class': 'text'}).string)
             else:
                 variablename = '_'.join(prefix) + '_' + (tr.find('td', attrs={'class': 'text'}).string)
-                value = tr.find('td', attrs={'class': 'value'}).string
+                value = locale.atof(tr.find('td', attrs={'class': 'value'}).string)
                 values[variablename] = value
         elif ('class', ['level-group']) in tr.attrs.items():
             table_list = tr.td.children
@@ -181,7 +208,7 @@ def extract_values_from_div(div, prefix=[], values={}):
         if child.name == 'h3':
             title = beautify(child.string)
         elif child.name == 'div':
-            extract_values_from_div(child, prefix , values)
+            extract_values_from_div(child, prefix, values)
         elif child.name == 'table':
             if ('class', ['header']) in child.attrs.items():
                 continue
