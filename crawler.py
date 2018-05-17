@@ -2,6 +2,7 @@ import bs4
 import locale
 import pprint
 import re
+import unicodedata
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -44,7 +45,14 @@ def extract_values_from_profile(soup):
                     type_of = child.b.text
                 elif child.a != None:
                     variablevalue[str(counter)] = {}
-                    variablevalue[str(counter)]['type'] = type_of
+                    child_text = str(child)
+                    # if there's text before the link, save everything into a comment
+                    if child_text.strip()[0:2] != '<a ':
+                        comment2 = ' '.join(list(child.stripped_strings))
+                        comment2 = re.sub(r'\s+', ' ', comment2).strip()
+                        variablevalue[str(counter)]['comment2'] = comment2
+                    if type_of:
+                        variablevalue[str(counter)]['type'] = unicodedata.normalize('NFKD', type_of)
                     link = child.a['href']
                     variablevalue[str(counter)]['link'] = link
                     name = child.a.string
@@ -61,8 +69,8 @@ def extract_values_from_profile(soup):
                         anteil = child.text[anteil_index + 7:percent_index]
                         variablevalue[str(counter)]['anteil'] = anteil
                     if child.br != None and child.br.string != None:
-                        comment = child.br.string
-                        variablevalue[str(counter)]['comment'] = comment
+                        comment1 = child.br.string
+                        variablevalue[str(counter)]['comment1'] = comment1
                     counter += 1
                 elif child.stripped_strings != None and list(child.stripped_strings) != []:
                     variablevalue[str(counter)] = {}
@@ -91,9 +99,9 @@ def extract_values_from_profile(soup):
                 content = content.replace(currency, '')
                 value_pattern = re.compile('[0-9,.]+')
                 value_re = value_pattern.search(content)
-                value =locale.atof( value_re.group())
+                value = locale.atof(value_re.group())
                 variablevalue[str(counter)]['value'] = value
-                content = content.replace(value, '')
+                content = content.replace(value_re.group(), '')
                 content = content.strip()
                 if content != '':
                     variablevalue[str(counter)]['comment'] = content
@@ -112,6 +120,8 @@ def extract_values_from_profile(soup):
                 value = {'name': name, 'link': link}
                 output[str(counter)] = value
             variablevalue = output
+        elif variablename in {'Suchbegriff(e)'}:
+            variablevalue = list(variablevalue.stripped_strings)
         elif variablename in {'Beschäftigte', 'Umsatz', 'EGT'}:
             variablevalues = variablevalue.stripped_strings
             variablevalue = {}
@@ -133,7 +143,7 @@ def extract_values_from_profile(soup):
                 if value_re:
                     value = locale.atof(value_re.group())
                     variablevalue[str(counter)]['value'] = value
-                    content = content.replace(value, '')
+                    content = content.replace(value_re.group(), '')
                     content = content.lstrip()
                 currencysymbol = re.compile('[A-Z]{3}')
                 currency_re = currencysymbol.search(content)
@@ -141,7 +151,7 @@ def extract_values_from_profile(soup):
                     currency = currency_re.group()
                     variablevalue[str(counter)]['currency'] = currency
                     variablevalue[str(counter)]['unit'] = content[:currency_re.start()]
-                    if content[currency_re.end():].strip()[1:-1] != ''
+                    if content[currency_re.end():].strip()[1:-1] != '':
                         variablevalue[str(counter)]['comment2'] = content[currency_re.end():].strip()[1:-1]
                 counter += 1
         else:
@@ -161,7 +171,10 @@ def beautify(
 
 
 def extract_values_from_table(table, prefix=[], values={}):
-    tr_list = table.tbody.children
+    print(table.prettify())
+    tr_list = table.children
+    if table.tbody:
+        tr_list = table.children
     tr_list = [x for x in tr_list if not isinstance(x, bs4.NavigableString) and x.name == 'tr']
     title = ''
     if tr_list == []:
@@ -242,7 +255,9 @@ def extract_values_from_bilanz(soup):
 
     extract_values_from_div(div, prefix=[title], values=values)
 
-    infotext = values['infotext'] = soup.find_all('div', attrs={'class', 'infotext'})
+    infotext = soup.find_all('div', attrs={'class', 'infotext'})
     if len(infotext) > 0:
-        values['infotext'] = soup.find('div', attrs={'class', 'infotext'}).p.string
+        infotext = soup.find('div', attrs={'class', 'infotext'}).p.string
+        infotext = re.sub(r'\s+', ' ', infotext).strip()
+        values[title + '_' + 'infotext'] = infotext
     return values

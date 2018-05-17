@@ -24,7 +24,7 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         suchwort_liste.append(row["Company Name"])
 
-suchwort_liste = suchwort_liste[:2]
+suchwort_liste = suchwort_liste[1:3]
 
 username = logindata.username
 password = logindata.password
