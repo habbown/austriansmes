@@ -27,7 +27,7 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
 
 
 start_index = 5
-end_index = 8
+end_index = 6
 
 company_list = company_list[start_index:end_index]
 

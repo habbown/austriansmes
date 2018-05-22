@@ -21,10 +21,10 @@ def extract_values_from_profile(soup):
         variablename = child.find('div', attrs={'class': 'label'})
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
-        #if variablename == 'OENACE.2008':
-            #if variablevalue.string:
-                #print(variablevalue.string)
-                #print(list(variablevalue.stripped_strings))
+        # if variablename == 'OENACE.2008':
+        # if variablevalue.string:
+        # print(variablevalue.string)
+        # print(list(variablevalue.stripped_strings))
         if variablevalue.string:
             variablevalue = variablevalue.string
         elif variablename in {'Telefon', 'Fax'}:
@@ -46,7 +46,7 @@ def extract_values_from_profile(soup):
             counter = 0
             type_of = None
             for child in variablevalue_children:
-                #print(child.prettify())
+                # print(child.prettify())
                 if child.b != None:
                     type_of = child.b.text
                 elif child.a != None:
@@ -54,7 +54,7 @@ def extract_values_from_profile(soup):
                     child_text = str(child.a.parent.text)
                     # if there's text before the link, save everything into a comment
                     if child_text.strip()[0:7] != '<a href':
-                        #print(child_text.strip())
+                        # print(child_text.strip())
                         comment2 = ' '.join(list(child.a.parent.stripped_strings))
                         comment2 = re.sub(r'\s+', ' ', comment2).strip()
                         variablevalue[str(counter)]['comment2'] = comment2
@@ -181,13 +181,14 @@ def extract_values_from_table(table, prefix=[], values={}):
     tr_list = table.children
     # if table.tbody:
     #    tr_list = table.tbody.children
+    print('Line 184, prefix', prefix)
     tr_list = [x for x in tr_list if not isinstance(x, bs4.NavigableString) and x.name == 'tr']
     title = ''
     if tr_list == []:
         return
     for tr in tr_list:
         if ('class', ['title', 'main', 'indent']) in tr.attrs.items() or ('class', ['title']) in tr.attrs.items() or (
-        'class', ['title', 'main']) in tr.attrs.items():
+                'class', ['title', 'main']) in tr.attrs.items():
             if tr.find('td', attrs={'class': 'value'}).string == None:
                 title = beautify(tr.find('td', attrs={'class': 'text'}).string)
             else:
@@ -199,9 +200,9 @@ def extract_values_from_table(table, prefix=[], values={}):
             print(tr.td.prettify())
             table_list = [x for x in table_list if not isinstance(x, bs4.NavigableString) and x.name == 'table']
             for table_element in table_list:
-                print('prefix', prefix)
-                print('Title', title)
-                extract_values_from_table(table_element, prefix.append(title), values)
+                print('Line 202 prefix', prefix)
+                print('Line 203 Title', title)
+                extract_values_from_table(table_element, prefix + [title], values)
         elif ('class', ['indent']) in tr.attrs.items():
             if tr.find('td', attrs={'class': 'text single'}) != None:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find('td', attrs={'class': 'text single'}).string)
@@ -217,16 +218,16 @@ def extract_values_from_table(table, prefix=[], values={}):
                 tr.find('td', attrs={'class': 'text'}).string)
             value = locale.atof(tr.find('td', attrs={'class': 'value'}).string)
             values[variablename] = value
-        elif len(tr.attrs.items()) == 0:
-            #print('#################')
-            #print(tr.prettify())
+        elif len(tr.attrs.items()) == 0 or ('class',['']) in tr.attrs.items():
+            # print('#################')
+            # print(tr.prettify())
             if tr.find(attrs={'class': 'text'}).string:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text'}).string)
             elif tr.find(attrs={'class': 'textsingle'}).string:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text single'}).string)
-            #print(variablename)
+            # print(variablename)
             value = locale.atof(tr.find(attrs={'class': 'value'}).string)
-            #print(value)
+            # print(value)
             values[variablename] = value
 
 
@@ -236,17 +237,18 @@ def extract_values_from_div(div, prefix=[], values={}):
     div_children = [x for x in div_children if not isinstance(x, bs4.NavigableString)]
     for child in div_children:
         if child.name == 'h3':
-            title = beautify(child.string)
-            print(title)
+            title = child.string
         elif child.name == 'div':
-            extract_values_from_div(child, prefix.append(title), values)
+            print('Line 240', prefix)
+            print('Line 243 Title', title)
+            extract_values_from_div(child, prefix + [title], values)
         elif child.name == 'table':
             if ('class', ['header']) in child.attrs.items():
                 continue
             elif ('class', ['bilanz-footer']) in child.attrs.items():
-                extract_values_from_table(child, prefix.append(title), values)
+                extract_values_from_table(child, prefix + [title], values=values)
             elif child.attrs == {}:
-                extract_values_from_table(child, prefix.append(title), values)
+                extract_values_from_table(child, prefix + [title], values=values)
 
 
 def extract_values_from_bilanz(soup):
@@ -269,8 +271,8 @@ def extract_values_from_bilanz(soup):
         name = beautify(name)
         values[title + '_' + name] = child.find(attrs={'class': 'content'}).string
 
-    div = soup.find('div', attrs={'class': 'bilanz'})
-
+    div = soup.find('div', attrs={'class': 'table-container'})
+    print('Line 273', title)
     extract_values_from_div(div, prefix=[title], values=values)
 
     infotext = soup.find_all('div', attrs={'class', 'infotext'})
