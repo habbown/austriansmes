@@ -7,6 +7,7 @@ import csv
 # import pandas
 import locale
 import statistics
+import re
 
 locale.setlocale(locale.LC_ALL, '')
 import pprint
@@ -24,15 +25,12 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-
-
-start_index = 5
-end_index = 6
+start_index = 7
+end_index = 8
 
 company_list = company_list[start_index:end_index]
 
 pprint.pprint(company_list)
-
 
 time_after_reading_data = time.time()
 
@@ -71,7 +69,7 @@ search_data = {
 bilanz_data = {
     "PageID": "916F8E",
     "onr": "",  # extract from company profile
-    "id": "20202351",  # extract from company profile, unique bilanz identifier
+    "id": "",  # extract from company profile, unique bilanz identifier
     "format": "htmltable",
     "erstellen": "Anzeigen"
 }
@@ -85,10 +83,13 @@ for company in company_list:
     print('#####################')
     print('Firma Nummer: ' + str(index))
     print(company['name'])
+    print(company['address'])
     index += 1
     values = {}
+
+    #
     search_data["suchartid"] = "F"
-    search_data["suchwort"] = company['name'][0:38]
+    search_data["suchwort"] = company['name'][0:38]  # if company name length > ~41, then no search results are found
     time_requests.append(time.time())
     result_profil = session_requests.post(result.url, data=search_data)
     time_requests[-1] = time.time() - time_requests[-1]
@@ -99,15 +100,31 @@ for company in company_list:
     if not result_summary:  # if not more than one company was found, check whether no company was found
         result_summary = soup.find('span', attrs={'id': 'result_summary'})
 
-    if result_summary:
+    if result_summary:  # when search by company name doesn't succeed (when no company is found(/ > 1 company found)
+        # search by address
+        print('No unique company by name')
         search_data["suchartid"] = "A"
         search_data["suchwort"] = company['address'][0:38]
         time_requests.append(time.time())
         result_profil = session_requests.post(result.url, data=search_data)
         time_requests[-1] = time.time() - time_requests[-1]
         soup = BeautifulSoup(result_profil.text, 'html.parser')
-        result_summary = soup.find('h2', attrs={'id': 'result_summary'})
-        # if result_summary: #in case again no unique company is found, match (or read out all of them?)
+        # if not unique, match by name (if no search result go back to looking by name?)
+        if soup.find('h2', attrs={'id': 'result_summary'}):
+            tag = soup.find('a', string=re.compile(str(company['name'][1:-1])))
+            onr_re = re.compile('onr=(\d*)')
+            onr = onr_re.search(str(tag)).group(1)
+            result_profil = session_requests.post(result.url, {'p': 'betrieb', 'onr': onr, 'PageID': '916F8E'})
+            soup = BeautifulSoup(result_profil.text, 'html.parser')
+
+    # if we still don't have a company profile page in our soup, we'll continue
+    result_summary = None
+    result_summary = soup.find('h2', attrs={'id': 'result_summary'})
+    if not result_summary:  # if not more than one company was found, check whether no company was found
+        result_summary = soup.find('span', attrs={'id': 'result_summary'})
+
+    if result_summary:
+        continue
 
     # assume now that we have a company profile in our soup:
     time_scraping_profile.append(time.time())
@@ -120,8 +137,10 @@ for company in company_list:
     counter = 0
     for form in form_list:
         values['Jahresabschluss'][str(counter)] = {}
-        onr_number = form.find('input', attrs={'name': 'onr', 'type': 'hidden'})['value']
-        id_number = form.find('input', attrs={'name': 'id', 'type': 'hidden'})['value']
+        if form.find('input', attrs={'name': 'onr', 'type': 'hidden'}):
+            onr_number = form.find('input', attrs={'name': 'onr', 'type': 'hidden'})['value']
+        if form.find('input', attrs={'name': 'id', 'type': 'hidden'}):
+            id_number = form.find('input', attrs={'name': 'id', 'type': 'hidden'})['value']
         if id_number and onr_number:
             bilanz_data['onr'] = onr_number
             bilanz_data['id'] = id_number
@@ -137,7 +156,7 @@ for company in company_list:
             values['Jahresabschluss'][str(counter)]['text'] = form_text.string
         form_comment = form.find('span', attrs={'class': 'badge'})
         if form_comment:
-            values['Jahresabschluss'][str(counter)]['comment'] = form_comment.string
+            values['Jahresabschluss'][str(counter)]['comment'] = list(form_comment.stripped_strings)[0]
         counter += 1
     print('#################')
     print('extracted:')
@@ -154,12 +173,18 @@ print("Scraping der Bilanzen durchschnittlich: " + str(statistics.mean(time_scra
 print("Durchführung der Requests durchschnittlich: " + str(statistics.mean(time_requests)))
 print("Anzahl der Requests: " + str(len(time_requests)))
 print("Scraping der Profile durchschnittlich: " + str(statistics.mean(time_scraping_profile)))
-#print('Bilanzenscraping')
-#pprint.pprint(time_scraping_bilanz)
-#print('Profilscraping')
-#pprint.pprint(time_scraping_profile)
-#print('Requests')
-#pprint.pprint(time_requests)
+# print('Bilanzenscraping')
+# pprint.pprint(time_scraping_bilanz)
+# print('Profilscraping')
+# pprint.pprint(time_scraping_profile)
+# print('Requests')
+# pprint.pprint(time_requests)
+
+# for numeric data make table: first extract field names and then write out using dictwriter (or look into dictwriter documentation again)
+# OR write out manually
+# for non-numeric data make extra tables, with several rows per company, depending on number of managers, ...
+
+
 '''
 # pandas.DataFrame(values).to_csv('index.csv',index=True) #doesn't work, why?
 # open a csv file with append, so old data will not be erased

@@ -21,10 +21,10 @@ def extract_values_from_profile(soup):
         variablename = child.find('div', attrs={'class': 'label'})
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
-        # if variablename == 'OENACE.2008':
-        # if variablevalue.string:
-        # print(variablevalue.string)
-        # print(list(variablevalue.stripped_strings))
+        if variablename == 'OENACE 2008':
+            if variablevalue.string:
+                print(variablevalue.string)
+            print(list(variablevalue.stripped_strings))
         if variablevalue.string:
             variablevalue = variablevalue.string
         elif variablename in {'Telefon', 'Fax'}:
@@ -41,23 +41,17 @@ def extract_values_from_profile(soup):
             else:
                 variablevalue = '; '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Wirtschaftlicher Eigentümer', 'Eigentümer', 'Management', 'Beteiligungen'}:
-            variablevalue_children = [x for x in variablevalue.children if not isinstance(x, bs4.NavigableString)]
+            variablevalue_children = [x for x in variablevalue.find_all('p') if not isinstance(x, bs4.NavigableString)]
             variablevalue = {}
             counter = 0
             type_of = None
             for child in variablevalue_children:
-                # print(child.prettify())
-                if child.b != None:
-                    type_of = child.b.text
+                if child.p:
+                    continue
+                elif child.b != None:
+                    type_of = unicodedata.normalize('NFKD', child.b.text)
                 elif child.a != None:
                     variablevalue[str(counter)] = {}
-                    child_text = str(child.a.parent.text)
-                    # if there's text before the link, save everything into a comment
-                    if child_text.strip()[0:7] != '<a href':
-                        # print(child_text.strip())
-                        comment2 = ' '.join(list(child.a.parent.stripped_strings))
-                        comment2 = re.sub(r'\s+', ' ', comment2).strip()
-                        variablevalue[str(counter)]['comment2'] = comment2
                     if type_of:
                         variablevalue[str(counter)]['type'] = unicodedata.normalize('NFKD', type_of)
                     link = child.a['href']
@@ -71,13 +65,15 @@ def extract_values_from_profile(soup):
                         birthdate = child.text[start_index:end_index]
                         variablevalue[str(counter)]['birthdate'] = birthdate
                     if 'Anteil' in child.text:
-                        anteil_index = child.text.find('Anteil')
-                        percent_index = child.text.find('%')
-                        anteil = child.text[anteil_index + 7:percent_index]
-                        variablevalue[str(counter)]['anteil'] = anteil
+                        p = re.compile('Anteil: ([\w %,]*)[)]')
+                        variablevalue[str(counter)]['anteil'] = p.search(str(child.text)).group(1)
                     if child.br != None and child.br.string != None:
                         comment1 = child.br.string
                         variablevalue[str(counter)]['comment1'] = comment1
+                    if child.text.strip()[0:5] != name[0:5]:
+                        comment2 = child.text.strip()
+                        comment2 = re.sub(r'\s+', ' ', comment2).strip()
+                        variablevalue[str(counter)]['comment2']= comment2
                     counter += 1
                 elif child.stripped_strings != None and list(child.stripped_strings) != []:
                     variablevalue[str(counter)] = {}
@@ -93,6 +89,8 @@ def extract_values_from_profile(soup):
                         name = child.text
                         variablevalue[str(counter)]['name'] = name
                     counter += 1
+                else:
+                    continue
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
             variablevalue = {}
@@ -181,7 +179,6 @@ def extract_values_from_table(table, prefix=[], values={}):
     tr_list = table.children
     # if table.tbody:
     #    tr_list = table.tbody.children
-    print('Line 184, prefix', prefix)
     tr_list = [x for x in tr_list if not isinstance(x, bs4.NavigableString) and x.name == 'tr']
     title = ''
     if tr_list == []:
@@ -197,11 +194,8 @@ def extract_values_from_table(table, prefix=[], values={}):
                 values[variablename] = value
         elif ('class', ['level-group']) in tr.attrs.items():
             table_list = tr.td.children
-            print(tr.td.prettify())
             table_list = [x for x in table_list if not isinstance(x, bs4.NavigableString) and x.name == 'table']
             for table_element in table_list:
-                print('Line 202 prefix', prefix)
-                print('Line 203 Title', title)
                 extract_values_from_table(table_element, prefix + [title], values)
         elif ('class', ['indent']) in tr.attrs.items():
             if tr.find('td', attrs={'class': 'text single'}) != None:
@@ -219,15 +213,11 @@ def extract_values_from_table(table, prefix=[], values={}):
             value = locale.atof(tr.find('td', attrs={'class': 'value'}).string)
             values[variablename] = value
         elif len(tr.attrs.items()) == 0 or ('class',['']) in tr.attrs.items():
-            # print('#################')
-            # print(tr.prettify())
             if tr.find(attrs={'class': 'text'}).string:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text'}).string)
             elif tr.find(attrs={'class': 'textsingle'}).string:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text single'}).string)
-            # print(variablename)
             value = locale.atof(tr.find(attrs={'class': 'value'}).string)
-            # print(value)
             values[variablename] = value
 
 
@@ -239,8 +229,6 @@ def extract_values_from_div(div, prefix=[], values={}):
         if child.name == 'h3':
             title = child.string
         elif child.name == 'div':
-            print('Line 240', prefix)
-            print('Line 243 Title', title)
             extract_values_from_div(child, prefix + [title], values)
         elif child.name == 'table':
             if ('class', ['header']) in child.attrs.items():
@@ -272,7 +260,6 @@ def extract_values_from_bilanz(soup):
         values[title + '_' + name] = child.find(attrs={'class': 'content'}).string
 
     div = soup.find('div', attrs={'class': 'table-container'})
-    print('Line 273', title)
     extract_values_from_div(div, prefix=[title], values=values)
 
     infotext = soup.find_all('div', attrs={'class', 'infotext'})
