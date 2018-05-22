@@ -21,14 +21,25 @@ def extract_values_from_profile(soup):
         variablename = child.find('div', attrs={'class': 'label'})
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
-        if variablename == 'OENACE 2008':
-            if variablevalue.string:
-                print(variablevalue.string)
-            print(list(variablevalue.stripped_strings))
         if variablevalue.string:
             variablevalue = variablevalue.string
+        elif variablename == 'OENACE 2008':
+            if variablevalue.string:
+                variablevalue = variablevalue.string
+            variablevalue = list(variablevalue.stripped_strings)
         elif variablename in {'Telefon', 'Fax'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
+        elif variablename in {'Niederlassungen'}:
+            comment = list(variablevalue.h4.stripped_strings)[0]
+            tables = variablevalue.find_all('table')
+            variablevalue = {}
+            variablevalue['0'] = comment
+            counter = 1
+            for table in tables:
+                variablevalue[str(counter)]={}
+                for row in table.find_all('tr'):
+                    variablevalue[str(counter)][row.th.string]= row.td.string
+                counter += 1
         elif variablename in {'Adresse', 'Postanschrift', 'Historische Adressen', 'Historische Firmenwortlaute'}:
             variablevalues = variablevalue.find_all('p')
             if len(variablevalues) != 0:
@@ -41,15 +52,19 @@ def extract_values_from_profile(soup):
             else:
                 variablevalue = '; '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Wirtschaftlicher Eigentümer', 'Eigentümer', 'Management', 'Beteiligungen'}:
-            variablevalue_children = [x for x in variablevalue.find_all('p') if not isinstance(x, bs4.NavigableString)]
+            if variablevalue.p:
+                variablevalue_children = [x for x in variablevalue.p if not isinstance(x, bs4.NavigableString)]
+            else:
+                variablevalue_children = [] #improve that to take care of wirtschaftlicher Eigentümer "Bock - Restaurant GmbH"
             variablevalue = {}
             counter = 0
             type_of = None
             for child in variablevalue_children:
-                if child.p:
-                    continue
-                elif child.b != None:
+                if child.b != None:
                     type_of = unicodedata.normalize('NFKD', child.b.text)
+                    print(type_of)
+                elif child.p:
+                    continue
                 elif child.a != None:
                     variablevalue[str(counter)] = {}
                     if type_of:

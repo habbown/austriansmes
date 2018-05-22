@@ -25,8 +25,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-start_index = 7
-end_index = 8
+start_index = 6
+end_index = 7
 
 company_list = company_list[start_index:end_index]
 
