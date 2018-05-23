@@ -22,11 +22,15 @@ def extract_values_from_profile(soup):
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
         if variablevalue.string:
-            variablevalue = variablevalue.string
+            variablevalue = re.sub(r'\s+', ' ',variablevalue.string).strip()
         elif variablename == 'OENACE 2008':
             if variablevalue.string:
                 variablevalue = variablevalue.string
-            variablevalue = list(variablevalue.stripped_strings)
+            else:
+                value = list(variablevalue.stripped_strings)
+                if variablevalue.b:
+                    value.insert(0,variablevalue.b.string)
+                variablevalue = value
         elif variablename in {'Telefon', 'Fax'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
         elif variablename in {'Niederlassungen'}:
@@ -36,9 +40,12 @@ def extract_values_from_profile(soup):
             variablevalue['0'] = comment
             counter = 1
             for table in tables:
-                variablevalue[str(counter)]={}
+                variablevalue[str(counter)] = {}
                 for row in table.find_all('tr'):
-                    variablevalue[str(counter)][row.th.string]= row.td.string
+                    if row.td.string:
+                        variablevalue[str(counter)][row.th.string] = row.td.string
+                    else:
+                        variablevalue[str(counter)][row.th.string] = ', '.join(list(row.td.stripped_strings))
                 counter += 1
         elif variablename in {'Adresse', 'Postanschrift', 'Historische Adressen', 'Historische Firmenwortlaute'}:
             variablevalues = variablevalue.find_all('p')
@@ -51,20 +58,50 @@ def extract_values_from_profile(soup):
                     counter += 1
             else:
                 variablevalue = '; '.join(list(variablevalue.stripped_strings))
-        elif variablename in {'Wirtschaftlicher Eigentümer', 'Eigentümer', 'Management', 'Beteiligungen'}:
+        elif variablename in {'Wirtschaftlicher Eigentümer'}:
+            variablevalue_children = [x for x in variablevalue.children if not isinstance(x, bs4.NavigableString)]
+            variablevalue = {}
+            counter = 0
+            for child in variablevalue_children:
+                if child.name == 'div' and child.span:
+                    variablevalue[str(counter)] = {}
+                    if child.span.a:
+                        link = child.span.a['href']
+                        variablevalue[str(counter)]['link'] = link
+                        name = child.span.a.string
+                        variablevalue[str(counter)]['name'] = name
+                    if 'geb.' in child.text:
+                        birthdate_index = child.text.find('geb.')
+                        start_index = birthdate_index + 5
+                        end_index = birthdate_index + 15
+                        birthdate = child.text[start_index:end_index]
+                        variablevalue[str(counter)]['birthdate'] = birthdate
+                elif child.name == 'p':
+                    variablevalue[str(counter)] = {}
+                    comment = ' '.join(list(child.stripped_strings))
+                    variablevalue[str(counter)]['comment'] = re.sub(r'\s+', ' ',comment).strip()
+                    if child.a:
+                        link = child.a['href']
+                        variablevalue[str(counter)]['link'] = link
+                        name = child.a.string
+                        variablevalue[str(counter)]['name'] = name
+                counter += 1
+        elif variablename in {'Rechtstatsachen'}:
+            variablevalue_children = variablevalue.find_all('p')
+            variablevalue = {}
+            for child in variablevalue_children:
+                variablevalue[child.b.string] = list(child.stripped_strings)[1]
+        elif variablename in {'Eigentümer', 'Management', 'Beteiligungen'}:
             if variablevalue.p:
-                variablevalue_children = [x for x in variablevalue.p if not isinstance(x, bs4.NavigableString)]
-            else:
-                variablevalue_children = [] #improve that to take care of wirtschaftlicher Eigentümer "Bock - Restaurant GmbH"
+                variablevalue_children = [x for x in variablevalue.find_all('p') if not isinstance(x, bs4.NavigableString)]
             variablevalue = {}
             counter = 0
             type_of = None
             for child in variablevalue_children:
-                if child.b != None:
-                    type_of = unicodedata.normalize('NFKD', child.b.text)
-                    print(type_of)
-                elif child.p:
+                if child.p:
                     continue
+                elif child.b != None:
+                    type_of = unicodedata.normalize('NFKD', child.b.text)
                 elif child.a != None:
                     variablevalue[str(counter)] = {}
                     if type_of:
@@ -88,7 +125,7 @@ def extract_values_from_profile(soup):
                     if child.text.strip()[0:5] != name[0:5]:
                         comment2 = child.text.strip()
                         comment2 = re.sub(r'\s+', ' ', comment2).strip()
-                        variablevalue[str(counter)]['comment2']= comment2
+                        variablevalue[str(counter)]['comment2'] = comment2
                     counter += 1
                 elif child.stripped_strings != None and list(child.stripped_strings) != []:
                     variablevalue[str(counter)] = {}
@@ -133,12 +170,13 @@ def extract_values_from_profile(soup):
                 variablevalue = variablevalue[:index]
         elif variablename in {'Bankverbindung', 'Internet-Adressen', 'E-Mail'}:
             output = {}
-            counter = 1
+            counter = 0
             for grandchild in variablevalue.find_all('a'):
                 link = grandchild['href']
                 name = grandchild.string
                 value = {'name': name, 'link': link}
                 output[str(counter)] = value
+                counter += 1
             variablevalue = output
         elif variablename in {'Suchbegriff(e)'}:
             variablevalue = list(variablevalue.stripped_strings)
@@ -227,7 +265,7 @@ def extract_values_from_table(table, prefix=[], values={}):
                 tr.find('td', attrs={'class': 'text'}).string)
             value = locale.atof(tr.find('td', attrs={'class': 'value'}).string)
             values[variablename] = value
-        elif len(tr.attrs.items()) == 0 or ('class',['']) in tr.attrs.items():
+        elif len(tr.attrs.items()) == 0 or ('class', ['']) in tr.attrs.items():
             if tr.find(attrs={'class': 'text'}).string:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text'}).string)
             elif tr.find(attrs={'class': 'textsingle'}).string:
