@@ -25,8 +25,9 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
+
 start_index = 0
-end_index = 10
+end_index = 2
 
 company_list = company_list[start_index:end_index]
 
@@ -73,7 +74,7 @@ bilanz_data = {
     "format": "htmltable",
     "erstellen": "Anzeigen"
 }
-# what to do if search results in a list of companies?
+
 
 time_before_loop = time.time()
 

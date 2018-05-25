@@ -5,9 +5,11 @@ import pprint
 import re
 import unicodedata
 
+#should we convert every string extracted from the page from navigable string to normal string?
+
 locale.setlocale(locale.LC_ALL, '')
 
-
+# takes in the source code of a profile page and extracts all values from the page
 def extract_values_from_profile(soup):
     values = {}
     fn_box = soup.find('h2')
@@ -17,19 +19,29 @@ def extract_values_from_profile(soup):
     div = soup.find('div', attrs={'class': 'content'})
 
     div_children = [x for x in div.children if not isinstance(x, bs4.NavigableString) and x.name == 'div']
+    # go through all possible pairs of variablename and variablevalue, depending on variablename do something with the
+    # field containing the variablevalues to convert it to reasonable output
     for child in div_children:
         variablename = child.find('div', attrs={'class': 'label'})
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
-        if variablevalue.string:
-            variablevalue = re.sub(r'\s+', ' ',variablevalue.string).strip()
+
+        if variablename == 'Gewerbedaten':
+            if variablevalue.a:
+                link = variablevalue.a['href']
+            if variablevalue.string:
+                name = variablevalue.string
+            variablevalue = {}
+            variablevalue['link'] = link
+            variablevalue['name'] = name
         elif variablename == 'OENACE 2008':
             if variablevalue.string:
                 variablevalue = variablevalue.string
             else:
                 value = list(variablevalue.stripped_strings)
+                # OENACE 2008 contains a list of things, of which one is bolded; move it to the front (even though we duplicate it by that)
                 if variablevalue.b:
-                    value.insert(0,variablevalue.b.string)
+                    value.insert(0, variablevalue.b.string)
                 variablevalue = value
         elif variablename in {'Telefon', 'Fax'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
@@ -39,6 +51,7 @@ def extract_values_from_profile(soup):
             variablevalue = {}
             variablevalue['0'] = comment
             counter = 1
+            # each table contains one Niederlassung, every table can have rows on address, phone number, ...
             for table in tables:
                 variablevalue[str(counter)] = {}
                 for row in table.find_all('tr'):
@@ -63,6 +76,7 @@ def extract_values_from_profile(soup):
             variablevalue = {}
             counter = 0
             for child in variablevalue_children:
+                #in case of div, there's two span tags inside of which the first contains the information and the second a link to a diagram
                 if child.name == 'div' and child.span:
                     variablevalue[str(counter)] = {}
                     if child.span.a:
@@ -76,10 +90,10 @@ def extract_values_from_profile(soup):
                         end_index = birthdate_index + 15
                         birthdate = child.text[start_index:end_index]
                         variablevalue[str(counter)]['birthdate'] = birthdate
-                elif child.name == 'p':
+                elif child.name == 'p': # in case of a p tag, there's either information about a person or extra text
                     variablevalue[str(counter)] = {}
                     comment = ' '.join(list(child.stripped_strings))
-                    variablevalue[str(counter)]['comment'] = re.sub(r'\s+', ' ',comment).strip()
+                    variablevalue[str(counter)]['comment'] = re.sub(r'\s+', ' ', comment).strip()
                     if child.a:
                         link = child.a['href']
                         variablevalue[str(counter)]['link'] = link
@@ -92,8 +106,12 @@ def extract_values_from_profile(soup):
             for child in variablevalue_children:
                 variablevalue[child.b.string] = list(child.stripped_strings)[1]
         elif variablename in {'Eigentümer', 'Management', 'Beteiligungen'}:
+            # those fields are not completely the same (explaining why the code isn't as nice as it could be), one of
+            # these has nested p tags (explaining why we don't just go to through the children but through all p tags,
+            # ignoring those which themselves contain p tags)
             if variablevalue.p:
-                variablevalue_children = [x for x in variablevalue.find_all('p') if not isinstance(x, bs4.NavigableString)]
+                variablevalue_children = [x for x in variablevalue.find_all('p') if
+                                          not isinstance(x, bs4.NavigableString)]
             variablevalue = {}
             counter = 0
             type_of = None
@@ -212,6 +230,8 @@ def extract_values_from_profile(soup):
                     if content[currency_re.end():].strip()[1:-1] != '':
                         variablevalue[str(counter)]['comment2'] = content[currency_re.end():].strip()[1:-1]
                 counter += 1
+        elif variablevalue.string:
+            variablevalue = re.sub(r'\s+', ' ', variablevalue.string).strip()
         else:
             continue
         values[beautify(variablename)] = variablevalue
@@ -226,9 +246,12 @@ def beautify(
         {ord('ä'): 'ae', ord('Ä'): 'Ae', ord('ö'): 'oe', ord('Ö'): 'Oe', ord('ü'): 'ue', ord('Ü'): 'Ue', ord('ß'): 'ss',
          ord(' '): '.', ord(','): ';'})
     return string
-
+    # what about commatas for CSV-export (or escape by putting in quotes and replacing quotes (") in text (do these exist)
+    # by double quotes (#)
 
 def extract_values_from_table(table, prefix=[], values={}):
+    #takes in a table tag, a prefix (to prepend the variablenames with), and a dictionary it adds values to (is that good or
+    # wouldn't it be better to just return a dictionary containing the values extracted from the table?)
     tr_list = table.children
     # if table.tbody:
     #    tr_list = table.tbody.children
@@ -237,6 +260,8 @@ def extract_values_from_table(table, prefix=[], values={}):
     if tr_list == []:
         return
     for tr in tr_list:
+        # depending on the tr's (the lines of the table) attributes, do one of certain things; if it contains the title
+        # of a subtable add it to the prefix, if it contains values, put them into the table, ...
         if ('class', ['title', 'main', 'indent']) in tr.attrs.items() or ('class', ['title']) in tr.attrs.items() or (
                 'class', ['title', 'main']) in tr.attrs.items():
             if tr.find('td', attrs={'class': 'value'}).string == None:
