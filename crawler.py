@@ -215,9 +215,12 @@ def extract_values_from_profile(soup):
                     comment1 = content[:index_of_colon]
                     variablevalue[str(counter)]['comment1'] = comment1
                 content = content.replace(re.compile(':? *').match(content).group(), '')
-                value_re = re.compile('-?[0-9,.]+').match(content)
+                value_re = re.compile('-?[0-9,.]+|keine').match(content)
                 if value_re:
-                    value = locale.atof(value_re.group())
+                    value = value_re.group()
+                    if value == 'keine':
+                        value = 0
+                    value = locale.atof(value)
                     variablevalue[str(counter)]['value'] = value
                     content = content.replace(value_re.group(), '')
                     content = content.lstrip()

@@ -25,9 +25,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-
 start_index = 0
-end_index = 2
+end_index = 3
 
 company_list = company_list[start_index:end_index]
 
@@ -74,7 +73,6 @@ bilanz_data = {
     "format": "htmltable",
     "erstellen": "Anzeigen"
 }
-
 
 time_before_loop = time.time()
 
@@ -132,6 +130,12 @@ for company in company_list:
     values = crawler.extract_values_from_profile(soup)
     time_scraping_profile[-1] = time.time() - time_scraping_profile[-1]
 
+    # extract onr (Compass ID for companies)
+    onr_pattern = re.compile('onr=(\d)+')
+    onr_re = onr_pattern.search(result_profil.url)
+    if onr_re:
+        values['onr'] = onr_re.group(1)
+
     # read in Bilanzdata, and extract id's
     form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
     values['Jahresabschluss'] = {}
@@ -186,10 +190,24 @@ print("Scraping der Profile durchschnittlich: " + str(statistics.mean(time_scrap
 # for non-numeric data make extra tables, with several rows per company, depending on number of managers, ...
 
 
-'''
 # pandas.DataFrame(values).to_csv('index.csv',index=True) #doesn't work, why?
 # open a csv file with append, so old data will not be erased
-with open('index.csv', 'w', newline='') as csv_file:
+
+'''
+Possible variable names:
+Basic data, easy to handle:
+Adresse, DVR-Nummer, E-Mail, Ersteintragung, FN, Fax, Firmenname, Firmenwortlaut, Gericht, Gruendungsjahr,
+Korrespondenz, Letzte.Eintragung,  OeNBD.Identnummer, Rechtsform, Sitz.in, Taetigkeit.lt..Recherche, Telefon, UID, onr
+Basic data, harder to handle:
+Bankverbindung, E-Mail, Gewerbedaten, Historische.Adressen, Historische.Firmenwortlaute, Niederlassungen, Internet-Adressen, Jahresabschluss, Kapital, 
+OENACE.2008, Suchbegriff(e),
+numeric data:
+Beschaeftigte, EGT, Umsatz, 
+one table each for:
+Beteiligungen, Bilanz, Eigentuemer, Management, Wirtschaftlicher.Eigentuemer
+
+#beautify strings when building dictionary or when writing out to file (probably the latter)
+with open('basicdata.csv', 'w', newline='') as csv_file: #  use 'a' for append (so initialize the file at the beginning ?)
     writer = csv.DictWriter(csv_file, values.keys())
     writer.writeheader()
     writer.writerow(halloasia)
