@@ -1,4 +1,14 @@
-# add username and password in relevant lines
+# put file logindata.py in same folder having form:
+# username = 'COMPASS USERNAME''
+# password = 'COMPASS PASSWORD'
+#
+# sql_config = {'user':'USERNAME',
+#               'host':'DATABASE HOST ADDRESS',
+#               'database':'DATABASE NAME',
+#               'password': 'PASSWORD',
+#               'port':'PORT'}
+#
+#replace words in capitals
 import time
 import crawler
 import requests
@@ -8,16 +18,93 @@ import csv
 import locale
 import statistics
 import re
+import mysql.connector
+from mysql.connector import errorcode
+from sqlalchemy import create_engine
+import mysql
 
 locale.setlocale(locale.LC_ALL, '')
 import pprint
 import logindata
+import pandas as pd
+import pymysql
 
+'''
+import mysql.connector
+from mysql.connector import errorcode
+
+
+def create_database(cursor):
+    try:
+        cursor.execute(
+            "CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(DB_NAME))
+    except mysql.connector.Error as err:
+        print("Failed creating database: {}".format(err))
+        exit(1)
+
+
+try:
+    cnx = mysql.connector.connect(**logindata.sql_config)
+except mysql.connector.Error as err:
+    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+        print("Something is wrong with your user name or password")
+    elif err.errno == errorcode.ER_BAD_DB_ERROR:
+        print("Database does not exist")
+    else:
+        print(err)
+else:
+    cnx.close()
+
+cursor = cnx.cursor()
+
+try:
+    cnx.database = DB_NAME
+except mysql.connector.Error as err:
+    if err.errno == errorcode.ER_BAD_DB_ERROR:
+        create_database(cursor)
+        cnx.database = DB_NAME
+    else:
+        print(err)
+        exit(1)
+
+for name, ddl in TABLES.iteritems():
+    try:
+        print("Creating table {}: ".format(name), end='')
+        cursor.execute(ddl)
+    except mysql.connector.Error as err:
+        if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
+            print("already exists.")
+        else:
+            print(err.msg)
+    else:
+        print("OK")
+
+add_basicdata = ("""INSERT INTO basic_data""")
+# cursor.close()
+# cnx.close()
+
+
+for table_info in crsr.tables(tableType='TABLE'):
+    print(table_info.table_name)
+'''
 company_list = []
 
 time_requests = []
 time_scraping_profile = []
 time_scraping_bilanz = []
+
+''' ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
+                   'Bankleitzahl', 'Taetigkeit']
+'''
+names_basicdata = ['FN', 'Firmenname', 'Compass-ID', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
+                   'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch'
+                   'Gericht', 'Gruendungsjahr','Korrespondenz',
+                   'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
+                   'Taetigkeit.lt..Recherche',
+                   'Telefon', 'UID',
+                   ]
+
+#names_numericdata = ['FN','Firmenname','Beschaeftigte','EGT','Kapital','Bilanzsumme','Umsatz','Cashflow']
 
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
@@ -78,6 +165,8 @@ time_before_loop = time.time()
 
 index = start_index
 
+list_basicdata = []
+
 for company in company_list:
     print('#####################')
     print('Firma Nummer: ' + str(index))
@@ -134,7 +223,7 @@ for company in company_list:
     onr_pattern = re.compile('onr=(\d)+')
     onr_re = onr_pattern.search(result_profil.url)
     if onr_re:
-        values['onr'] = onr_re.group(1)
+        values['Compass-ID (ONR)'] = onr_re.group(1)
 
     # read in Bilanzdata, and extract id's
     form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
@@ -163,9 +252,15 @@ for company in company_list:
         if form_comment:
             values['Jahresabschluss'][str(counter)]['comment'] = list(form_comment.stripped_strings)[0]
         counter += 1
-    print('#################')
-    print('extracted:')
-    pprint.pprint(values)
+    #  put collected values into a list of dictionaries, at end convert to dataframe
+    values_basicdata = {}
+    values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
+    pprint.pprint(values_basicdata)
+    list_basicdata.append(values_basicdata)
+
+    # print('#################')
+    # print('extracted:')
+    # pprint.pprint(values)
 
 time_after_loop = time.time()
 
@@ -205,10 +300,45 @@ numeric data:
 Beschaeftigte, EGT, Umsatz, 
 one table each for:
 Beteiligungen, Bilanz, Eigentuemer, Management, Wirtschaftlicher.Eigentuemer
-
-#beautify strings when building dictionary or when writing out to file (probably the latter)
-with open('basicdata.csv', 'w', newline='') as csv_file: #  use 'a' for append (so initialize the file at the beginning ?)
-    writer = csv.DictWriter(csv_file, values.keys())
-    writer.writeheader()
-    writer.writerow(halloasia)
 '''
+
+basicdata = pd.DataFrame(list_basicdata)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
+print(basicdata)
+
+DB_NAME = 'compassdata'
+
+'''
+try:
+    cnx = mysql.connector.connect(**logindata.sql_config)
+except mysql.connector.Error as err:
+    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+        print("Something is wrong with your user name or password")
+    elif err.errno == errorcode.ER_BAD_DB_ERROR:
+        print("Database does not exist")
+    else:
+        print(err)
+# else:
+#   cnx.close()
+
+cursor = cnx.cursor()
+
+try:
+    cnx.database = DB_NAME
+except mysql.connector.Error as err:
+    if err.errno == errorcode.ER_BAD_DB_ERROR:
+        create_database(cursor)
+        cnx.database = DB_NAME
+    else:
+        print(err)
+        exit(1)
+'''
+
+engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
+                  "@" + logindata.sql_config['host'] + "/" + DB_NAME)
+engine = create_engine(engine_address)
+con = engine.connect()
+basicdata.to_sql(name="BasicData", con=con, if_exists='append')
+con.close()

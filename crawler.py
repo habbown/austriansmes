@@ -247,7 +247,7 @@ def beautify(
     string = ' '.join(string.split())
     string = string.translate(
         {ord('ä'): 'ae', ord('Ä'): 'Ae', ord('ö'): 'oe', ord('Ö'): 'Oe', ord('ü'): 'ue', ord('Ü'): 'Ue', ord('ß'): 'ss',
-         ord(' '): '.', ord(','): ';'})
+         ord(' '): '.', ord(';'): ','})
     return string
     # what about commatas for CSV-export (or escape by putting in quotes and replacing quotes (") in text (do these exist)
     # by double quotes (#)
