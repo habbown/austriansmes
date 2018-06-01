@@ -112,75 +112,76 @@ def extract_values_from_profile(soup):
             if variablevalue.p:
                 variablevalue_children = [x for x in variablevalue.find_all('p') if
                                           not isinstance(x, bs4.NavigableString)]
-            variablevalue = {}
-            counter = 0
+            variablevalue = []
             type_of = None
             for child in variablevalue_children:
+                info = {}
+                info['FN'] = fn
+                info['function'] = variablename
                 if child.p:
                     continue
                 elif child.b != None:
-                    type_of = unicodedata.normalize('NFKD', child.b.text)
+                    type_of = unicodedata.normalize('NFC', child.b.text)
                 elif child.a != None:
-                    variablevalue[str(counter)] = {}
                     if type_of:
-                        variablevalue[str(counter)]['type'] = unicodedata.normalize('NFKD', type_of)
+                        info['type'] = type_of
                     link = child.a['href']
-                    variablevalue[str(counter)]['link'] = link
+                    info['link'] = link
                     name = child.a.string
-                    variablevalue[str(counter)]['name'] = name
+                    info['name'] = name
                     if 'geb.' in child.text:
                         birthdate_index = child.text.find('geb.')
                         start_index = birthdate_index + 5
                         end_index = birthdate_index + 15
                         birthdate = child.text[start_index:end_index]
-                        variablevalue[str(counter)]['birthdate'] = birthdate
+                        info['birthdate'] = birthdate
                     if 'Anteil' in child.text:
                         p = re.compile('Anteil: ([\w %,]*)[)]')
-                        variablevalue[str(counter)]['anteil'] = p.search(str(child.text)).group(1)
+                        info['anteil'] = p.search(str(child.text)).group(1)
                     if child.br != None and child.br.string != None:
                         comment1 = child.br.string
-                        variablevalue[str(counter)]['comment1'] = comment1
+                        info['comment1'] = comment1
                     if child.text.strip()[0:5] != name[0:5]:
                         comment2 = child.text.strip()
                         comment2 = re.sub(r'\s+', ' ', comment2).strip()
-                        variablevalue[str(counter)]['comment2'] = comment2
-                    counter += 1
+                        info['comment2'] = comment2
+                    variablevalue.append(info)
                 elif child.stripped_strings != None and list(child.stripped_strings) != []:
-                    variablevalue[str(counter)] = {}
-                    variablevalue[str(counter)]['type'] = type_of
+                    info['type'] = type_of
                     if '(' in list(child.stripped_strings)[0]:
                         parenthesis_open = list(child.stripped_strings)[0].find('(')
                         parenthesis_close = list(child.stripped_strings)[0].find(')')
                         comment = list(child.stripped_strings)[0][parenthesis_open + 1:parenthesis_close]
                         name = list(child.stripped_strings)[0][:parenthesis_open - 1]
-                        variablevalue[str(counter)]['name'] = name
-                        variablevalue[str(counter)]['comment'] = comment
+                        info['name'] = name
+                        info['comment'] = comment
                     else:
                         name = child.text
-                        variablevalue[str(counter)]['name'] = name
-                    counter += 1
+                        info['name'] = name
+                    variablevalue.append(info)
                 else:
                     continue
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
-            variablevalue = {}
-            counter = 0
+            variablevalue = []
             for content in kapital:
-                variablevalue[str(counter)] = {}
+                info = {}
+                info['FN'] = fn
+                info['name'] = variablename
                 currencysymbol = re.compile('[A-Z]{3}')
                 currency_re = currencysymbol.search(content)
                 currency = currency_re.group()
-                variablevalue[str(counter)]['currency'] = currency
+                info['currency'] = currency
                 content = content.replace(currency, '')
                 value_pattern = re.compile('[0-9,.]+')
                 value_re = value_pattern.search(content)
                 value = locale.atof(value_re.group())
-                variablevalue[str(counter)]['value'] = value
+                info['value'] = value
                 content = content.replace(value_re.group(), '')
                 content = content.strip()
                 if content != '':
-                    variablevalue[str(counter)]['comment'] = content
-                counter += 1
+                    info['comment'] = content
+                variablevalue.append(info)
         elif variablename in {'Gericht', 'UID'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
             if ';' in variablevalue:

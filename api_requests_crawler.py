@@ -94,7 +94,7 @@ time_scraping_bilanz = []
 ''' ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
                    'Bankleitzahl', 'Taetigkeit']
 '''
-names_basicdata = ['FN', 'Firmenname', 'Compass-ID', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
+names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
                    'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch'
                                             'Gericht', 'Gruendungsjahr', 'Korrespondenz',
                    'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
@@ -102,7 +102,9 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID', 'Firmenwortlaut', 'Adresse'
                    'Telefon', 'UID',
                    ]
 
-names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz']
+names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital']
+
+names_administrativedata = ['Eigentuemer','Management','Beteiligungen']
 
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
@@ -165,6 +167,7 @@ index = start_index
 
 list_basicdata = []
 list_numericdata = []
+list_administrativedata = []
 
 for company in company_list:
     print('#####################')
@@ -219,10 +222,10 @@ for company in company_list:
     time_scraping_profile[-1] = time.time() - time_scraping_profile[-1]
 
     # extract onr (Compass ID for companies)
-    onr_pattern = re.compile('onr=(\d)+')
+    onr_pattern = re.compile('onr=(\d+)')
     onr_re = onr_pattern.search(result_profil.url)
     if onr_re:
-        values['Compass-ID (ONR)'] = onr_re.group(1)
+        values['Compass-ID(ONR)'] = onr_re.group(1)
 
     # read in Bilanzdata, and extract id's
     form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
@@ -254,16 +257,21 @@ for company in company_list:
     #  put collected values into a list of dictionaries, at end convert to dataframe
     # values_basicdata = {}
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
-    values_numericdata = [value for key, value in values.items() if key in names_numericdata]
+
     list_basicdata.append(values_basicdata)
+    values_numericdata = [value for key, value in values.items() if key in names_numericdata]
     values_numericdata = [item for sublist in values_numericdata for item in sublist]
     list_numericdata.extend(values_numericdata)
-pprint.pprint(list_basicdata)
-pprint.pprint(list_numericdata)
 
-    # print('#################')
-    # print('extracted:')
-    # pprint.pprint(values)
+    values_administrativedata = [value for key, value in values.items() if key in names_administrativedata]
+    values_administrativedata = [item for sublist in values_administrativedata for item in sublist]
+    list_administrativedata.extend(values_administrativedata)
+
+
+
+# print('#################')
+# print('extracted:')
+# pprint.pprint(values)
 
 time_after_loop = time.time()
 
@@ -310,7 +318,10 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
 numericdata = pd.DataFrame(list_numericdata)
-print(numericdata)
+
+
+administrativedata = pd.DataFrame(list_administrativedata)
+print(administrativedata)
 
 DB_NAME = 'compassdata'
 
@@ -341,10 +352,11 @@ except mysql.connector.Error as err:
 '''
 
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
-                  "@" + logindata.sql_config['host'] + "/" + DB_NAME)
-engine = create_engine(engine_address)
+                  "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
+engine = create_engine(engine_address,encoding = 'utf-8')
 con = engine.connect()
 basicdata.to_sql(name="BasicData", con=con, if_exists='append')
 numericdata.to_sql(name="NumericData", con=con, if_exists='append')
+administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
 
 con.close()
