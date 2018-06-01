@@ -3,31 +3,29 @@
 # password = 'COMPASS PASSWORD'
 #
 # sql_config = {'user':'USERNAME',
-#               'host':'DATABASE HOST ADDRESS',
+#               'host':'HOST ADDRESS',
 #               'database':'DATABASE NAME',
 #               'password': 'PASSWORD',
 #               'port':'PORT'}
 #
-#replace words in capitals
+# replace words in capitals
 import time
 import crawler
 import requests
 from bs4 import BeautifulSoup
 import csv
-# import pandas
+
 import locale
 import statistics
 import re
-import mysql.connector
-from mysql.connector import errorcode
+
 from sqlalchemy import create_engine
-import mysql
 
 locale.setlocale(locale.LC_ALL, '')
 import pprint
 import logindata
 import pandas as pd
-import pymysql
+import pymysql  # keep, is needed for SQL engine
 
 '''
 import mysql.connector
@@ -98,13 +96,13 @@ time_scraping_bilanz = []
 '''
 names_basicdata = ['FN', 'Firmenname', 'Compass-ID', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
                    'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch'
-                   'Gericht', 'Gruendungsjahr','Korrespondenz',
+                                            'Gericht', 'Gruendungsjahr', 'Korrespondenz',
                    'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
                    'Taetigkeit.lt..Recherche',
                    'Telefon', 'UID',
                    ]
 
-#names_numericdata = ['FN','Firmenname','Beschaeftigte','EGT','Kapital','Bilanzsumme','Umsatz','Cashflow']
+names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz']
 
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
@@ -166,6 +164,7 @@ time_before_loop = time.time()
 index = start_index
 
 list_basicdata = []
+list_numericdata = []
 
 for company in company_list:
     print('#####################')
@@ -253,10 +252,14 @@ for company in company_list:
             values['Jahresabschluss'][str(counter)]['comment'] = list(form_comment.stripped_strings)[0]
         counter += 1
     #  put collected values into a list of dictionaries, at end convert to dataframe
-    values_basicdata = {}
+    # values_basicdata = {}
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
-    pprint.pprint(values_basicdata)
+    values_numericdata = [value for key, value in values.items() if key in names_numericdata]
     list_basicdata.append(values_basicdata)
+    values_numericdata = [item for sublist in values_numericdata for item in sublist]
+    list_numericdata.extend(values_numericdata)
+pprint.pprint(list_basicdata)
+pprint.pprint(list_numericdata)
 
     # print('#################')
     # print('extracted:')
@@ -306,7 +309,8 @@ basicdata = pd.DataFrame(list_basicdata)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
-print(basicdata)
+numericdata = pd.DataFrame(list_numericdata)
+print(numericdata)
 
 DB_NAME = 'compassdata'
 
@@ -341,4 +345,6 @@ engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logi
 engine = create_engine(engine_address)
 con = engine.connect()
 basicdata.to_sql(name="BasicData", con=con, if_exists='append')
+numericdata.to_sql(name="NumericData", con=con, if_exists='append')
+
 con.close()

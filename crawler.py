@@ -13,7 +13,7 @@ locale.setlocale(locale.LC_ALL, '')
 def extract_values_from_profile(soup):
     values = {}
     fn_box = soup.find('h2')
-    fn = fn_box.text.strip()
+    fn = fn_box.text.strip()[3:]
     values['FN'] = fn
 
     div = soup.find('div', attrs={'class': 'content'})
@@ -200,20 +200,21 @@ def extract_values_from_profile(soup):
             variablevalue = list(variablevalue.stripped_strings)
         elif variablename in {'Beschäftigte', 'Umsatz', 'EGT'}:
             variablevalues = variablevalue.stripped_strings
-            variablevalue = {}
-            counter = 0
+            variablevalue = []
             for content in variablevalues:
-                variablevalue[str(counter)] = {}
+                info = {}
+                info['FN'] = fn
+                info['name'] = variablename
                 find_year = re.compile('[0-9/]*')
                 year_re = find_year.match(content)
                 if year_re:
                     year = year_re.group()
-                    variablevalue[str(counter)]['year'] = year
+                    info['year'] = year
                     content = content.replace(year, '')
                 index_of_colon = content.find(':')
                 if index_of_colon not in [-1, 0]:
                     comment1 = content[:index_of_colon]
-                    variablevalue[str(counter)]['comment1'] = comment1
+                    info['comment1'] = comment1
                 content = content.replace(re.compile(':? *').match(content).group(), '')
                 value_re = re.compile('-?[0-9,.]+|keine').match(content)
                 if value_re:
@@ -221,18 +222,18 @@ def extract_values_from_profile(soup):
                     if value == 'keine':
                         value = 0
                     value = locale.atof(value)
-                    variablevalue[str(counter)]['value'] = value
+                    info['value'] = value
                     content = content.replace(value_re.group(), '')
                     content = content.lstrip()
                 currencysymbol = re.compile('[A-Z]{3}')
                 currency_re = currencysymbol.search(content)
                 if currency_re:
                     currency = currency_re.group()
-                    variablevalue[str(counter)]['currency'] = currency
-                    variablevalue[str(counter)]['unit'] = content[:currency_re.start()]
+                    info['currency'] = currency
+                    info['unit'] = content[:currency_re.start()]
                     if content[currency_re.end():].strip()[1:-1] != '':
-                        variablevalue[str(counter)]['comment2'] = content[currency_re.end():].strip()[1:-1]
-                counter += 1
+                        info['comment2'] = content[currency_re.end():].strip()[1:-1]
+                variablevalue.append(info)
         elif variablevalue.string:
             variablevalue = re.sub(r'\s+', ' ', variablevalue.string).strip()
         else:
