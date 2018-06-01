@@ -91,6 +91,7 @@ time_requests = []
 time_scraping_profile = []
 time_scraping_bilanz = []
 
+
 ''' ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
                    'Bankleitzahl', 'Taetigkeit']
 '''
@@ -113,7 +114,7 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 start_index = 0
-end_index = 3
+end_index = 10
 
 company_list = company_list[start_index:end_index]
 
@@ -204,12 +205,14 @@ for company in company_list:
             tag = soup.find('a', string=re.compile(str(company['name'][1:-1])))
             onr_re = re.compile('onr=(\d*)')
             onr = onr_re.search(str(tag)).group(1)
+            values['Compass-ID(ONR)'] = onr
             result_profil = session_requests.post(result.url, {'p': 'betrieb', 'onr': onr, 'PageID': '916F8E'})
             soup = BeautifulSoup(result_profil.text, 'html.parser')
 
     # if we still don't have a company profile page in our soup, we'll continue
     result_summary = None
     result_summary = soup.find('h2', attrs={'id': 'result_summary'})
+
     if not result_summary:  # if not more than one company was found, check whether no company was found
         result_summary = soup.find('span', attrs={'id': 'result_summary'})
 
@@ -218,7 +221,7 @@ for company in company_list:
 
     # assume now that we have a company profile in our soup:
     time_scraping_profile.append(time.time())
-    values = crawler.extract_values_from_profile(soup)
+    values.update(crawler.extract_values_from_profile(soup))
     time_scraping_profile[-1] = time.time() - time_scraping_profile[-1]
 
     # extract onr (Compass ID for companies)
@@ -256,9 +259,11 @@ for company in company_list:
         counter += 1
     #  put collected values into a list of dictionaries, at end convert to dataframe
     # values_basicdata = {}
+    pprint.pprint(values)
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
-
     list_basicdata.append(values_basicdata)
+    print(list_basicdata)
+
     values_numericdata = [value for key, value in values.items() if key in names_numericdata]
     values_numericdata = [item for sublist in values_numericdata for item in sublist]
     list_numericdata.extend(values_numericdata)
@@ -313,16 +318,24 @@ one table each for:
 Beteiligungen, Bilanz, Eigentuemer, Management, Wirtschaftlicher.Eigentuemer
 '''
 
+time_for_pd = time.time()
+
 basicdata = pd.DataFrame(list_basicdata)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
+print(basicdata)
 
 numericdata = pd.DataFrame(list_numericdata)
 
 
 administrativedata = pd.DataFrame(list_administrativedata)
-print(administrativedata)
 
+
+time_for_pd = time.time() - time_for_pd
+print("time_for_pd", time_for_pd)
+
+
+time_for_sql = time.time()
 DB_NAME = 'compassdata'
 
 '''
@@ -360,3 +373,5 @@ numericdata.to_sql(name="NumericData", con=con, if_exists='append')
 administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
 
 con.close()
+time_for_sql = time.time() - time_for_sql
+print("time_for_sql", time_for_sql)
