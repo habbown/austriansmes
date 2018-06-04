@@ -73,33 +73,33 @@ def extract_values_from_profile(soup):
                 variablevalue = '; '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Wirtschaftlicher Eigentümer'}:
             variablevalue_children = [x for x in variablevalue.children if not isinstance(x, bs4.NavigableString)]
-            variablevalue = {}
-            counter = 0
+            variablevalue = []
             for child in variablevalue_children:
+                info = {}
+                info['FN']=fn
+                info['function'] = variablename
                 #in case of div, there's two span tags inside of which the first contains the information and the second a link to a diagram
                 if child.name == 'div' and child.span:
-                    variablevalue[str(counter)] = {}
                     if child.span.a:
                         link = child.span.a['href']
-                        variablevalue[str(counter)]['link'] = link
+                        info['link'] = link
                         name = child.span.a.string
-                        variablevalue[str(counter)]['name'] = name
+                        info['name'] = name
                     if 'geb.' in child.text:
                         birthdate_index = child.text.find('geb.')
                         start_index = birthdate_index + 5
                         end_index = birthdate_index + 15
                         birthdate = child.text[start_index:end_index]
-                        variablevalue[str(counter)]['birthdate'] = birthdate
+                        info['birthdate'] = birthdate
                 elif child.name == 'p': # in case of a p tag, there's either information about a person or extra text
-                    variablevalue[str(counter)] = {}
                     comment = ' '.join(list(child.stripped_strings))
-                    variablevalue[str(counter)]['comment'] = re.sub(r'\s+', ' ', comment).strip()
+                    info['comment'] = re.sub(r'\s+', ' ', comment).strip()
                     if child.a:
                         link = child.a['href']
-                        variablevalue[str(counter)]['link'] = link
+                        info['link'] = link
                         name = child.a.string
-                        variablevalue[str(counter)]['name'] = name
-                counter += 1
+                        info['name'] = name
+                variablevalue.append(info)
         elif variablename in {'Rechtstatsachen'}:
             variablevalue_children = variablevalue.find_all('p')
             variablevalue = {}
@@ -121,7 +121,11 @@ def extract_values_from_profile(soup):
                 if child.p:
                     continue
                 elif child.b != None:
-                    type_of = unicodedata.normalize('NFC', child.b.text)
+                    type_of = child.b.string
+                    type_of.replace("\xc2\xa0","")
+                    type_of.replace("\xa0","")
+                    type_of = re.sub('\s+', ' ',type_of)
+                    type_of.strip()
                 elif child.a != None:
                     if type_of:
                         info['type'] = type_of
@@ -136,7 +140,7 @@ def extract_values_from_profile(soup):
                         birthdate = child.text[start_index:end_index]
                         info['birthdate'] = birthdate
                     if 'Anteil' in child.text:
-                        p = re.compile('Anteil: ([\w %,]*)[)]')
+                        p = re.compile('Anteil: ([\w %,.]*)[)]')
                         info['anteil'] = p.search(str(child.text)).group(1)
                     if child.br != None and child.br.string != None:
                         comment1 = child.br.string
@@ -147,7 +151,8 @@ def extract_values_from_profile(soup):
                         info['comment2'] = comment2
                     variablevalue.append(info)
                 elif child.stripped_strings != None and list(child.stripped_strings) != []:
-                    info['type'] = type_of
+                    if type_of:
+                        info['type'] = type_of
                     if '(' in list(child.stripped_strings)[0]:
                         parenthesis_open = list(child.stripped_strings)[0].find('(')
                         parenthesis_close = list(child.stripped_strings)[0].find(')')

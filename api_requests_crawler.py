@@ -91,13 +91,12 @@ time_requests = []
 time_scraping_profile = []
 time_scraping_bilanz = []
 
-
 ''' ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
                    'Bankleitzahl', 'Taetigkeit']
 '''
 names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
-                   'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch'
-                                            'Gericht', 'Gruendungsjahr', 'Korrespondenz',
+                   'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch',
+                   'Gericht', 'Gruendungsjahr', 'Korrespondenz',
                    'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
                    'Taetigkeit.lt..Recherche',
                    'Telefon', 'UID',
@@ -105,7 +104,7 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
 
 names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital']
 
-names_administrativedata = ['Eigentuemer','Management','Beteiligungen']
+names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer']
 
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
@@ -113,8 +112,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-start_index = 0
-end_index = 10
+start_index = 2
+end_index = 3
 
 company_list = company_list[start_index:end_index]
 
@@ -143,8 +142,6 @@ time_requests[-1] = time.time() - time_requests[-1]
 time_requests.append(time.time())
 result = session_requests.get(url, headers=dict(referer=url))
 time_requests[-1] = time.time() - time_requests[-1]
-# looking up by name is not ideal, we could use address from D&B Hoovers to look up by address and then do name check (or something along this line?)
-
 
 search_data = {
     "PageID": "916F8E",
@@ -169,6 +166,7 @@ index = start_index
 list_basicdata = []
 list_numericdata = []
 list_administrativedata = []
+list_bilanzdata = []
 
 for company in company_list:
     print('#####################')
@@ -259,20 +257,25 @@ for company in company_list:
         counter += 1
     #  put collected values into a list of dictionaries, at end convert to dataframe
     # values_basicdata = {}
-    pprint.pprint(values)
+    #pprint.pprint(values)
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
     list_basicdata.append(values_basicdata)
-    print(list_basicdata)
+    #print(list_basicdata)
 
     values_numericdata = [value for key, value in values.items() if key in names_numericdata]
     values_numericdata = [item for sublist in values_numericdata for item in sublist]
     list_numericdata.extend(values_numericdata)
 
     values_administrativedata = [value for key, value in values.items() if key in names_administrativedata]
+    print(values_administrativedata)
     values_administrativedata = [item for sublist in values_administrativedata for item in sublist]
     list_administrativedata.extend(values_administrativedata)
 
+    values_bilanzdata = [{'FN': values['FN'], 'name': key, 'value': value}
+                         for key, value in values.items() if key.startswith('Bilanz')]
+    list_bilanzdata.extend(values_bilanzdata)
 
+print(list_administrativedata)
 
 # print('#################')
 # print('extracted:')
@@ -314,8 +317,10 @@ Bankverbindung, E-Mail, Gewerbedaten, Historische.Adressen, Historische.Firmenwo
 OENACE.2008, Suchbegriff(e),
 numeric data:
 Beschaeftigte, EGT, Umsatz, 
-one table each for:
-Beteiligungen, Bilanz, Eigentuemer, Management, Wirtschaftlicher.Eigentuemer
+one table for:
+Beteiligungen, Eigentuemer, Management, Wirtschaftlicher.Eigentuemer
+and a table for:
+the data from the Bilanzen
 '''
 
 time_for_pd = time.time()
@@ -323,17 +328,15 @@ time_for_pd = time.time()
 basicdata = pd.DataFrame(list_basicdata)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
-print(basicdata)
+#print(basicdata)
 
 numericdata = pd.DataFrame(list_numericdata)
-
-
 administrativedata = pd.DataFrame(list_administrativedata)
-
+bilanzdata = pd.DataFrame(list_bilanzdata)
+pprint.pprint(administrativedata)
 
 time_for_pd = time.time() - time_for_pd
 print("time_for_pd", time_for_pd)
-
 
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
@@ -366,12 +369,12 @@ except mysql.connector.Error as err:
 
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
-engine = create_engine(engine_address,encoding = 'utf-8')
+engine = create_engine(engine_address, encoding='utf-8')
 con = engine.connect()
 basicdata.to_sql(name="BasicData", con=con, if_exists='append')
 numericdata.to_sql(name="NumericData", con=con, if_exists='append')
 administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
-
+bilanzdata.to_sql(name="BilanzData", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
