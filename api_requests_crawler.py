@@ -102,9 +102,13 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
                    'Telefon', 'UID',
                    ]
 
-names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital']
+names_searchdata = ['Suchbegriff(e)', 'OENACE.2008']
+
+names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
 
 names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer']
+
+names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail']
 
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
@@ -112,8 +116,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-start_index = 2
-end_index = 3
+start_index = 0
+end_index = 10
 
 company_list = company_list[start_index:end_index]
 
@@ -167,6 +171,8 @@ list_basicdata = []
 list_numericdata = []
 list_administrativedata = []
 list_bilanzdata = []
+list_contactdata = []
+list_searchdata = []
 
 for company in company_list:
     print('#####################')
@@ -188,6 +194,10 @@ for company in company_list:
     result_summary = soup.find('h2', attrs={'id': 'result_summary'})
     if not result_summary:  # if not more than one company was found, check whether no company was found
         result_summary = soup.find('span', attrs={'id': 'result_summary'})
+        if not result_summary:  # another option is that too many companies were found: (e.g., Spar)
+            result_summary = soup.find('div', attrs={'class': 'message warning'})
+            if result_summary:
+                result_summary = result_summary.div
 
     if result_summary:  # when search by company name doesn't succeed (when no company is found(/ > 1 company found)
         # search by address
@@ -230,10 +240,9 @@ for company in company_list:
 
     # read in Bilanzdata, and extract id's
     form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
-    values['Jahresabschluss'] = {}
-    counter = 0
     for form in form_list:
-        values['Jahresabschluss'][str(counter)] = {}
+        id_number = None
+        onr_number = None
         if form.find('input', attrs={'name': 'onr', 'type': 'hidden'}):
             onr_number = form.find('input', attrs={'name': 'onr', 'type': 'hidden'})['value']
         if form.find('input', attrs={'name': 'id', 'type': 'hidden'}):
@@ -248,34 +257,36 @@ for company in company_list:
             time_scraping_bilanz.append(time.time())
             values.update(crawler.extract_values_from_bilanz(bilanz_soup))
             time_scraping_bilanz[-1] = time.time() - time_scraping_bilanz[-1]
-        form_text = form.find('span', attrs={'class': 'spacing'})
-        if form_text:
-            values['Jahresabschluss'][str(counter)]['text'] = form_text.string
-        form_comment = form.find('span', attrs={'class': 'badge'})
-        if form_comment:
-            values['Jahresabschluss'][str(counter)]['comment'] = list(form_comment.stripped_strings)[0]
-        counter += 1
     #  put collected values into a list of dictionaries, at end convert to dataframe
     # values_basicdata = {}
-    #pprint.pprint(values)
+    # pprint.pprint(values)
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
     list_basicdata.append(values_basicdata)
-    #print(list_basicdata)
+    # print(list_basicdata)
 
     values_numericdata = [value for key, value in values.items() if key in names_numericdata]
     values_numericdata = [item for sublist in values_numericdata for item in sublist]
     list_numericdata.extend(values_numericdata)
 
+    values_contactdata = {key: value for key, value in values.items() if key in names_contactdata}
+    values_contactdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value in values_contactdata.items()
+                          for info in value]
+    list_contactdata.extend(values_contactdata)
+
     values_administrativedata = [value for key, value in values.items() if key in names_administrativedata]
-    print(values_administrativedata)
     values_administrativedata = [item for sublist in values_administrativedata for item in sublist]
     list_administrativedata.extend(values_administrativedata)
+
+    values_searchdata = {key:value for key, value in values.items() if key in names_searchdata}
+    values_searchdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key,value in values_searchdata.items()
+                         for info in value]
+    list_searchdata.extend(values_searchdata)
+
 
     values_bilanzdata = [{'FN': values['FN'], 'name': key, 'value': value}
                          for key, value in values.items() if key.startswith('Bilanz')]
     list_bilanzdata.extend(values_bilanzdata)
 
-print(list_administrativedata)
 
 # print('#################')
 # print('extracted:')
@@ -328,13 +339,16 @@ time_for_pd = time.time()
 basicdata = pd.DataFrame(list_basicdata)
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
-#print(basicdata)
+# print(basicdata)
 
 numericdata = pd.DataFrame(list_numericdata)
 administrativedata = pd.DataFrame(list_administrativedata)
 bilanzdata = pd.DataFrame(list_bilanzdata)
-pprint.pprint(administrativedata)
+searchdata = pd.DataFrame(list_searchdata)
+# pprint.pprint(administrativedata)
 
+
+contactdata = pd.DataFrame(list_contactdata)
 time_for_pd = time.time() - time_for_pd
 print("time_for_pd", time_for_pd)
 
@@ -367,6 +381,7 @@ except mysql.connector.Error as err:
         exit(1)
 '''
 
+
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
@@ -375,6 +390,8 @@ basicdata.to_sql(name="BasicData", con=con, if_exists='append')
 numericdata.to_sql(name="NumericData", con=con, if_exists='append')
 administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
 bilanzdata.to_sql(name="BilanzData", con=con, if_exists='append')
+contactdata.to_sql(name="ContactData", con=con, if_exists='append')
+searchdata.to_sql(name="SearchData", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)

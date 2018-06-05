@@ -5,9 +5,10 @@ import pprint
 import re
 import unicodedata
 
-#should we convert every string extracted from the page from navigable string to normal string?
+# should we convert every string extracted from the page from navigable string to normal string?
 
 locale.setlocale(locale.LC_ALL, '')
+
 
 # takes in the source code of a profile page and extracts all values from the page
 def extract_values_from_profile(soup):
@@ -36,12 +37,16 @@ def extract_values_from_profile(soup):
             variablevalue['name'] = name
         elif variablename == 'OENACE 2008':
             if variablevalue.string:
-                variablevalue = variablevalue.string
+                variablevalue = [{'value': variablevalue.string, 'main': True}]
             else:
                 value = list(variablevalue.stripped_strings)
-                # OENACE 2008 contains a list of things, of which one is bolded; move it to the front (even though we duplicate it by that)
                 if variablevalue.b:
-                    value.insert(0, variablevalue.b.string)
+                    bolded = list(variablevalue.b.stripped_strings)[0]
+                    value = [item for item in value if item != bolded]
+                    value = [{'value': item, 'main': False} for item in value]
+                    value.append({'value': bolded, 'main': True})
+                else:
+                    value = [{'value': item, 'main': False} for item in value]
                 variablevalue = value
         elif variablename in {'Telefon', 'Fax'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
@@ -76,9 +81,9 @@ def extract_values_from_profile(soup):
             variablevalue = []
             for child in variablevalue_children:
                 info = {}
-                info['FN']=fn
+                info['FN'] = fn
                 info['function'] = variablename
-                #in case of div, there's two span tags inside of which the first contains the information and the second a link to a diagram
+                # in case of div, there's two span tags inside of which the first contains the information and the second a link to a diagram
                 if child.name == 'div' and child.span:
                     if child.span.a:
                         link = child.span.a['href']
@@ -91,7 +96,7 @@ def extract_values_from_profile(soup):
                         end_index = birthdate_index + 15
                         birthdate = child.text[start_index:end_index]
                         info['birthdate'] = birthdate
-                elif child.name == 'p': # in case of a p tag, there's either information about a person or extra text
+                elif child.name == 'p':  # in case of a p tag, there's either information about a person or extra text
                     comment = ' '.join(list(child.stripped_strings))
                     info['comment'] = re.sub(r'\s+', ' ', comment).strip()
                     if child.a:
@@ -105,7 +110,10 @@ def extract_values_from_profile(soup):
             variablevalue = {}
             for child in variablevalue_children:
                 variablevalue[child.b.string] = list(child.stripped_strings)[1]
-        elif variablename in {'Eigentümer', 'Management', 'Beteiligungen'}:
+        elif variablename in {'Ringbeteiligung'}:
+            if variablevalue.find('span', attrs={'class': 'checked'}):
+                variablevalue = variablevalue.find('span', attrs={'class': 'checked'})
+        elif variablename in {'Eigentümer', 'Management', 'Beteiligungen', 'Kontrollorgane'}:
             # those fields are not completely the same (explaining why the code isn't as nice as it could be), one of
             # these has nested p tags (explaining why we don't just go to through the children but through all p tags,
             # ignoring those which themselves contain p tags)
@@ -122,9 +130,9 @@ def extract_values_from_profile(soup):
                     continue
                 elif child.b != None:
                     type_of = child.b.string
-                    type_of.replace("\xc2\xa0","")
-                    type_of.replace("\xa0","")
-                    type_of = re.sub('\s+', ' ',type_of)
+                    type_of.replace("\xc2\xa0", "")
+                    type_of.replace("\xa0", "")
+                    type_of = re.sub('\s+', ' ', type_of)
                     type_of.strip()
                 elif child.a != None:
                     if type_of:
@@ -187,24 +195,35 @@ def extract_values_from_profile(soup):
                 if content != '':
                     info['comment'] = content
                 variablevalue.append(info)
+        elif variablename in {'Jahresabschluss', 'Konzernabschluss'}:
+            children = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
+            variablevalue = []
+            for form in children:
+                info = {}
+                form_text = form.find('span', attrs={'class': 'spacing'})
+                if form_text:
+                    info['text'] = form_text.string
+                form_comment = form.find('span', attrs={'class': 'badge'})
+                if form_comment:
+                    info['comment'] = list(form_comment.stripped_strings)[0]
+                variablevalue.append(info)
         elif variablename in {'Gericht', 'UID'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
             if ';' in variablevalue:
                 index = variablevalue.find(';')
                 variablevalue = variablevalue[:index]
         elif variablename in {'Bankverbindung', 'Internet-Adressen', 'E-Mail'}:
-            output = {}
-            counter = 0
-            for grandchild in variablevalue.find_all('a'):
-                link = grandchild['href']
-                name = grandchild.string
-                value = {'name': name, 'link': link}
-                output[str(counter)] = value
-                counter += 1
-            variablevalue = output
+            children = variablevalue.find_all('a')
+            variablevalue = []
+            for child in children:
+                link = child['href']
+                name = child.string
+                info = {'name': name, 'link': link}
+                variablevalue.append(info)
         elif variablename in {'Suchbegriff(e)'}:
             variablevalue = list(variablevalue.stripped_strings)
-        elif variablename in {'Beschäftigte', 'Umsatz', 'EGT'}:
+            variablevalue = [{'value':value} for value in variablevalue]
+        elif variablename in {'Beschäftigte', 'Umsatz', 'EGT', 'Cashflow'}:
             variablevalues = variablevalue.stripped_strings
             variablevalue = []
             for content in variablevalues:
@@ -260,8 +279,9 @@ def beautify(
     # what about commatas for CSV-export (or escape by putting in quotes and replacing quotes (") in text (do these exist)
     # by double quotes (#)
 
+
 def extract_values_from_table(table, prefix=[], values={}):
-    #takes in a table tag, a prefix (to prepend the variablenames with), and a dictionary it adds values to (is that good or
+    # takes in a table tag, a prefix (to prepend the variablenames with), and a dictionary it adds values to (is that good or
     # wouldn't it be better to just return a dictionary containing the values extracted from the table?)
     tr_list = table.children
     # if table.tbody:
