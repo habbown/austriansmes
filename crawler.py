@@ -29,13 +29,14 @@ def extract_values_from_profile(soup):
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
         if variablename == 'Gewerbedaten':
+            info = {}
             if variablevalue.a:
                 link = variablevalue.a['href']
+                info['link'] = link
             if variablevalue.string:
                 name = variablevalue.string
-            variablevalue = {}
-            variablevalue['link'] = link
-            variablevalue['name'] = name
+                info['name'] = name
+            variablevalue = info
         elif variablename in {'Ediktsdatei'}:
             for item in variablevalue.stripped_strings:
                 if item.parent.name=='a':
@@ -44,6 +45,31 @@ def extract_values_from_profile(soup):
                 else:
                     comment = item
             variablevalue = {'link':link, 'linktext':linktext, 'comment':comment}
+        elif variablename in {'EU-Agrarförderungen'}:
+            info = {}
+            value = []
+            period = None
+            for child in variablevalue.children:
+                if child.name == 'p':
+                    if child.stripped_strings!=[]:
+                        period = list(child.stripped_strings)[0]
+                elif child.name == 'div':
+                    if child.table:
+                        for row in child.table.children:
+                            if row.name == 'thead':
+                                names = row.find_all('th')
+                                names = [name.string for name in names]
+                            elif row.name == 'tr':
+                                info={}
+                                if period:
+                                    info['period']=period
+                                contents = row.find_all('td')
+                                contents = [list(content.stripped_strings)[0] for content in contents]
+                                info.update(dict(zip(names,contents)))
+                                value.append(info)
+                elif isinstance(child,bs4.NavigableString):
+                    continue
+            variablevalue = value
         elif variablename == 'OENACE 2008':
             if variablevalue.string:
                 variablevalue = [{'value': variablevalue.string, 'main': True}]

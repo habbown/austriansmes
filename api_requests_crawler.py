@@ -1,5 +1,5 @@
 # put file logindata.py in same folder having form:
-# username = 'COMPASS USERNAME''
+# username = 'COMPASS USERNAME'
 # password = 'COMPASS PASSWORD'
 #
 # sql_config = {'user':'USERNAME',
@@ -27,64 +27,6 @@ import logindata
 import pandas as pd
 import pymysql  # keep, is needed for SQL engine
 
-'''
-import mysql.connector
-from mysql.connector import errorcode
-
-
-def create_database(cursor):
-    try:
-        cursor.execute(
-            "CREATE DATABASE {} DEFAULT CHARACTER SET 'utf8'".format(DB_NAME))
-    except mysql.connector.Error as err:
-        print("Failed creating database: {}".format(err))
-        exit(1)
-
-
-try:
-    cnx = mysql.connector.connect(**logindata.sql_config)
-except mysql.connector.Error as err:
-    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-        print("Something is wrong with your user name or password")
-    elif err.errno == errorcode.ER_BAD_DB_ERROR:
-        print("Database does not exist")
-    else:
-        print(err)
-else:
-    cnx.close()
-
-cursor = cnx.cursor()
-
-try:
-    cnx.database = DB_NAME
-except mysql.connector.Error as err:
-    if err.errno == errorcode.ER_BAD_DB_ERROR:
-        create_database(cursor)
-        cnx.database = DB_NAME
-    else:
-        print(err)
-        exit(1)
-
-for name, ddl in TABLES.iteritems():
-    try:
-        print("Creating table {}: ".format(name), end='')
-        cursor.execute(ddl)
-    except mysql.connector.Error as err:
-        if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
-            print("already exists.")
-        else:
-            print(err.msg)
-    else:
-        print("OK")
-
-add_basicdata = ("""INSERT INTO basic_data""")
-# cursor.close()
-# cnx.close()
-
-
-for table_info in crsr.tables(tableType='TABLE'):
-    print(table_info.table_name)
-'''
 company_list = []
 
 time_requests = []
@@ -109,7 +51,7 @@ names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
 names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
                             'Kontrollorgane']
 
-names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail']
+names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail','Gewerbedaten']
 
 names_niederlassungsdata = ['Niederlassungen']
 
@@ -123,6 +65,8 @@ start_index = 30
 end_index = 40
 
 company_list = company_list[start_index:end_index]
+
+company_list = [{'name':'Agrarmarkt Austria Marketing','address':'asdklj'}]
 
 pprint.pprint(company_list)
 
@@ -378,31 +322,6 @@ print("time_for_pd", time_for_pd)
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
 
-'''
-try:
-    cnx = mysql.connector.connect(**logindata.sql_config)
-except mysql.connector.Error as err:
-    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-        print("Something is wrong with your user name or password")
-    elif err.errno == errorcode.ER_BAD_DB_ERROR:
-        print("Database does not exist")
-    else:
-        print(err)
-# else:
-#   cnx.close()
-
-cursor = cnx.cursor()
-
-try:
-    cnx.database = DB_NAME
-except mysql.connector.Error as err:
-    if err.errno == errorcode.ER_BAD_DB_ERROR:
-        create_database(cursor)
-        cnx.database = DB_NAME
-    else:
-        print(err)
-        exit(1)
-'''
 
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
