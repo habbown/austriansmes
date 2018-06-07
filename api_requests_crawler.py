@@ -92,23 +92,26 @@ time_scraping_profile = []
 time_scraping_bilanz = []
 
 ''' ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
-                   'Bankleitzahl', 'Taetigkeit']
+                   'Bankleitzahl']
 '''
 names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
-                   'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch',
-                   'Gericht', 'Gruendungsjahr', 'Korrespondenz',
-                   'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
-                   'Taetigkeit.lt..Recherche',
-                   'Telefon', 'UID',
+                   'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
+                   'Korrespondenz', 'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
+                   'Taetigkeit.lt..Recherche', 'Telefon', 'UID', 'Korrespondenz', 'Produkte',
+                   'Import', 'Export', 'Markennamen', 'gelöscht'
                    ]
+names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
 
 names_searchdata = ['Suchbegriff(e)', 'OENACE.2008']
 
 names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
 
-names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer']
+names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
+                            'Kontrollorgane']
 
 names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail']
+
+names_niederlassungsdata = ['Niederlassungen']
 
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
@@ -116,8 +119,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-start_index = 0
-end_index = 10
+start_index = 30
+end_index = 40
 
 company_list = company_list[start_index:end_index]
 
@@ -173,6 +176,8 @@ list_administrativedata = []
 list_bilanzdata = []
 list_contactdata = []
 list_searchdata = []
+list_abschlussdata = []
+list_niederlassungsdata = []
 
 for company in company_list:
     print('#####################')
@@ -212,10 +217,12 @@ for company in company_list:
         if soup.find('h2', attrs={'id': 'result_summary'}):
             tag = soup.find('a', string=re.compile(str(company['name'][1:-1])))
             onr_re = re.compile('onr=(\d*)')
-            onr = onr_re.search(str(tag)).group(1)
-            values['Compass-ID(ONR)'] = onr
-            result_profil = session_requests.post(result.url, {'p': 'betrieb', 'onr': onr, 'PageID': '916F8E'})
-            soup = BeautifulSoup(result_profil.text, 'html.parser')
+            onr = onr_re.search(str(tag))
+            if onr:
+                onr = onr.group(1)
+                values['Compass-ID(ONR)'] = onr
+                result_profil = session_requests.post(result.url, {'p': 'betrieb', 'onr': onr, 'PageID': '916F8E'})
+                soup = BeautifulSoup(result_profil.text, 'html.parser')
 
     # if we still don't have a company profile page in our soup, we'll continue
     result_summary = None
@@ -225,6 +232,7 @@ for company in company_list:
         result_summary = soup.find('span', attrs={'id': 'result_summary'})
 
     if result_summary:
+        print('No unique company by address either')
         continue
 
     # assume now that we have a company profile in our soup:
@@ -257,6 +265,8 @@ for company in company_list:
             time_scraping_bilanz.append(time.time())
             values.update(crawler.extract_values_from_bilanz(bilanz_soup))
             time_scraping_bilanz[-1] = time.time() - time_scraping_bilanz[-1]
+
+    pprint.pprint(values)
     #  put collected values into a list of dictionaries, at end convert to dataframe
     # values_basicdata = {}
     # pprint.pprint(values)
@@ -277,16 +287,24 @@ for company in company_list:
     values_administrativedata = [item for sublist in values_administrativedata for item in sublist]
     list_administrativedata.extend(values_administrativedata)
 
-    values_searchdata = {key:value for key, value in values.items() if key in names_searchdata}
-    values_searchdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key,value in values_searchdata.items()
+    values_searchdata = {key: value for key, value in values.items() if key in names_searchdata}
+    values_searchdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value in values_searchdata.items()
                          for info in value]
     list_searchdata.extend(values_searchdata)
-
 
     values_bilanzdata = [{'FN': values['FN'], 'name': key, 'value': value}
                          for key, value in values.items() if key.startswith('Bilanz')]
     list_bilanzdata.extend(values_bilanzdata)
 
+    values_abschlussdata = {key: value for key, value in values.items() if key in names_abschluss}
+    values_abschlussdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
+                            in values_abschlussdata.items() for info in value]
+    list_abschlussdata.extend(values_abschlussdata)
+
+    values_niederlassungsdata = {key: value for key, value in values.items() if key in names_niederlassungsdata}
+    values_niederlassungsdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
+                            in values_niederlassungsdata.items() for info in value]
+    list_niederlassungsdata.extend(values_niederlassungsdata)
 
 # print('#################')
 # print('extracted:')
@@ -299,10 +317,13 @@ print(time_after_reading_data)
 print(time_before_loop)
 print(time_after_loop)
 print("Zeit pro Firma: " + str((time_after_loop - time_before_loop) / (end_index - start_index)))
-print("Scraping der Bilanzen durchschnittlich: " + str(statistics.mean(time_scraping_bilanz)))
-print("Durchführung der Requests durchschnittlich: " + str(statistics.mean(time_requests)))
+if time_scraping_bilanz != []:
+    print("Scraping der Bilanzen durchschnittlich: " + str(statistics.mean(time_scraping_bilanz)))
+if time_requests != []:
+    print("Durchführung der Requests durchschnittlich: " + str(statistics.mean(time_requests)))
 print("Anzahl der Requests: " + str(len(time_requests)))
-print("Scraping der Profile durchschnittlich: " + str(statistics.mean(time_scraping_profile)))
+if time_scraping_profile != []:
+    print("Scraping der Profile durchschnittlich: " + str(statistics.mean(time_scraping_profile)))
 # print('Bilanzenscraping')
 # pprint.pprint(time_scraping_bilanz)
 # print('Profilscraping')
@@ -345,6 +366,8 @@ numericdata = pd.DataFrame(list_numericdata)
 administrativedata = pd.DataFrame(list_administrativedata)
 bilanzdata = pd.DataFrame(list_bilanzdata)
 searchdata = pd.DataFrame(list_searchdata)
+abschlussdata = pd.DataFrame(list_abschlussdata)
+niederlassungsdata = pd.DataFrame(list_niederlassungsdata)
 # pprint.pprint(administrativedata)
 
 
@@ -381,7 +404,6 @@ except mysql.connector.Error as err:
         exit(1)
 '''
 
-
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
@@ -392,6 +414,8 @@ administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append'
 bilanzdata.to_sql(name="BilanzData", con=con, if_exists='append')
 contactdata.to_sql(name="ContactData", con=con, if_exists='append')
 searchdata.to_sql(name="SearchData", con=con, if_exists='append')
+abschlussdata.to_sql(name="Abschluss", con=con, if_exists='append')
+niederlassungsdata.to_sql(name="Niederlassungen", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)

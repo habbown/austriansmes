@@ -16,6 +16,8 @@ def extract_values_from_profile(soup):
     fn_box = soup.find('h2')
     fn = fn_box.text.strip()[3:]
     values['FN'] = fn
+    if soup.find('h1',attrs={'class':'geloescht'}):
+        values['gelöscht'] = soup.find('h1',attrs={'class':'geloescht'}).string
 
     div = soup.find('div', attrs={'class': 'content'})
 
@@ -26,7 +28,6 @@ def extract_values_from_profile(soup):
         variablename = child.find('div', attrs={'class': 'label'})
         variablevalue = child.find('div', attrs={'class': 'content'})
         variablename = ' '.join(list(variablename.stripped_strings))
-
         if variablename == 'Gewerbedaten':
             if variablevalue.a:
                 link = variablevalue.a['href']
@@ -35,6 +36,14 @@ def extract_values_from_profile(soup):
             variablevalue = {}
             variablevalue['link'] = link
             variablevalue['name'] = name
+        elif variablename in {'Ediktsdatei'}:
+            for item in variablevalue.stripped_strings:
+                if item.parent.name=='a':
+                    link = item.parent['href']
+                    linktext = item
+                else:
+                    comment = item
+            variablevalue = {'link':link, 'linktext':linktext, 'comment':comment}
         elif variablename == 'OENACE 2008':
             if variablevalue.string:
                 variablevalue = [{'value': variablevalue.string, 'main': True}]
@@ -51,20 +60,23 @@ def extract_values_from_profile(soup):
         elif variablename in {'Telefon', 'Fax'}:
             variablevalue = list(variablevalue.stripped_strings)[0]
         elif variablename in {'Niederlassungen'}:
-            comment = list(variablevalue.h4.stripped_strings)[0]
             tables = variablevalue.find_all('table')
-            variablevalue = {}
-            variablevalue['0'] = comment
-            counter = 1
+            headings = variablevalue.find_all('h4')
+            variablevalue = []
+            if headings != []:
+                for header in headings:
+                    header = list(header.stripped_strings)[0]
+                    variablevalue.append({'comment':header})
             # each table contains one Niederlassung, every table can have rows on address, phone number, ...
-            for table in tables:
-                variablevalue[str(counter)] = {}
-                for row in table.find_all('tr'):
-                    if row.td.string:
-                        variablevalue[str(counter)][row.th.string] = row.td.string
-                    else:
-                        variablevalue[str(counter)][row.th.string] = ', '.join(list(row.td.stripped_strings))
-                counter += 1
+            if tables != []:
+                for table in tables:
+                    info = {}
+                    for row in table.find_all('tr'):
+                        if row.td.string:
+                            info[row.th.string] = row.td.string
+                        else:
+                            info[row.th.string] = ' '.join(list(row.td.stripped_strings))
+                    variablevalue.append(info)
         elif variablename in {'Adresse', 'Postanschrift', 'Historische Adressen', 'Historische Firmenwortlaute'}:
             variablevalues = variablevalue.find_all('p')
             if len(variablevalues) != 0:
@@ -104,12 +116,20 @@ def extract_values_from_profile(soup):
                         info['link'] = link
                         name = child.a.string
                         info['name'] = name
+                elif child.stripped_strings == []:
+                    continue
                 variablevalue.append(info)
         elif variablename in {'Rechtstatsachen'}:
             variablevalue_children = variablevalue.find_all('p')
             variablevalue = {}
             for child in variablevalue_children:
                 variablevalue[child.b.string] = list(child.stripped_strings)[1]
+        elif variablename in {'Firmeninformationen'}:
+            info = {}
+            for item in variablevalue.find_all('li'):
+                if item.a:
+                    info[item.a.string] = item.a['href']
+            variablevalue = info
         elif variablename in {'Ringbeteiligung'}:
             if variablevalue.find('span', attrs={'class': 'checked'}):
                 variablevalue = variablevalue.find('span', attrs={'class': 'checked'})
@@ -174,6 +194,8 @@ def extract_values_from_profile(soup):
                     variablevalue.append(info)
                 else:
                     continue
+        elif variablename in {'Tätigkeit lt. Recherche'}:
+            variablevalue =', '.join(variablevalue.stripped_strings)
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
             variablevalue = []
