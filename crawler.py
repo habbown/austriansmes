@@ -36,7 +36,7 @@ def extract_values_from_profile(soup):
             if variablevalue.string:
                 name = variablevalue.string
                 info['name'] = name
-            variablevalue = info
+            variablevalue = [info]
         elif variablename in {'Ediktsdatei'}:
             for item in variablevalue.stripped_strings:
                 if item.parent.name=='a':
@@ -84,7 +84,7 @@ def extract_values_from_profile(soup):
                     value = [{'value': item, 'main': False} for item in value]
                 variablevalue = value
         elif variablename in {'Telefon', 'Fax'}:
-            variablevalue = list(variablevalue.stripped_strings)[0]
+            variablevalue = ', '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Niederlassungen'}:
             tables = variablevalue.find_all('table')
             headings = variablevalue.find_all('h4')
@@ -221,7 +221,7 @@ def extract_values_from_profile(soup):
                 else:
                     continue
         elif variablename in {'Tätigkeit lt. Recherche'}:
-            variablevalue =', '.join(variablevalue.stripped_strings)
+            variablevalue =' '.join(variablevalue.stripped_strings)
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
             variablevalue = []

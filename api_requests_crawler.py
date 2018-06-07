@@ -40,7 +40,7 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
                    'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
                    'Korrespondenz', 'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
                    'Taetigkeit.lt..Recherche', 'Telefon', 'UID', 'Korrespondenz', 'Produkte',
-                   'Import', 'Export', 'Markennamen', 'gelöscht'
+                   'Import', 'Export', 'Markennamen', 'gelöscht', 'Gründungsprivilegierung'
                    ]
 names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
 
@@ -55,18 +55,18 @@ names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail','Gewerbedat
 
 names_niederlassungsdata = ['Niederlassungen']
 
+names_rechtstatsachen = ['Rechtstatsachen']
+
 time_start = time.time()
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     csvreader = csv.DictReader(csvfile)
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-start_index = 30
-end_index = 40
+start_index = 0
+end_index = 4
 
 company_list = company_list[start_index:end_index]
-
-company_list = [{'name':'Agrarmarkt Austria Marketing','address':'asdklj'}]
 
 pprint.pprint(company_list)
 
@@ -122,6 +122,7 @@ list_contactdata = []
 list_searchdata = []
 list_abschlussdata = []
 list_niederlassungsdata = []
+list_rechtstatsachen = []
 
 for company in company_list:
     print('#####################')
@@ -250,6 +251,11 @@ for company in company_list:
                             in values_niederlassungsdata.items() for info in value]
     list_niederlassungsdata.extend(values_niederlassungsdata)
 
+    values_rechtstatsachen = {key: value for key, value in values.items() if key in names_rechtstatsachen}
+    values_rechtstatsachen= [{'FN': values['FN'], 'type': key, 'number':key1,'text':value1} for key, value
+                            in values_rechtstatsachen.items() for key1,value1 in value.items()]
+    list_rechtstatsachen.extend(values_rechtstatsachen)
+
 # print('#################')
 # print('extracted:')
 # pprint.pprint(values)
@@ -312,6 +318,7 @@ bilanzdata = pd.DataFrame(list_bilanzdata)
 searchdata = pd.DataFrame(list_searchdata)
 abschlussdata = pd.DataFrame(list_abschlussdata)
 niederlassungsdata = pd.DataFrame(list_niederlassungsdata)
+rechtstatsachendata = pd.DataFrame(list_rechtstatsachen)
 # pprint.pprint(administrativedata)
 
 
@@ -335,6 +342,7 @@ contactdata.to_sql(name="ContactData", con=con, if_exists='append')
 searchdata.to_sql(name="SearchData", con=con, if_exists='append')
 abschlussdata.to_sql(name="Abschluss", con=con, if_exists='append')
 niederlassungsdata.to_sql(name="Niederlassungen", con=con, if_exists='append')
+rechtstatsachendata.to_sql(name="Rechtstatsachen", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
