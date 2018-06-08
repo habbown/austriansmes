@@ -16,8 +16,8 @@ def extract_values_from_profile(soup):
     fn_box = soup.find('h2')
     fn = fn_box.text.strip()[3:]
     values['FN'] = fn
-    if soup.find('h1',attrs={'class':'geloescht'}):
-        values['gelöscht'] = soup.find('h1',attrs={'class':'geloescht'}).string
+    if soup.find('h1', attrs={'class': 'geloescht'}):
+        values['gelöscht'] = soup.find('h1', attrs={'class': 'geloescht'}).string
 
     div = soup.find('div', attrs={'class': 'content'})
 
@@ -39,19 +39,18 @@ def extract_values_from_profile(soup):
             variablevalue = [info]
         elif variablename in {'Ediktsdatei'}:
             for item in variablevalue.stripped_strings:
-                if item.parent.name=='a':
+                if item.parent.name == 'a':
                     link = item.parent['href']
                     linktext = item
                 else:
                     comment = item
-            variablevalue = {'link':link, 'linktext':linktext, 'comment':comment}
+            variablevalue = {'link': link, 'linktext': linktext, 'comment': comment}
         elif variablename in {'EU-Agrarförderungen'}:
-            info = {}
             value = []
             period = None
             for child in variablevalue.children:
                 if child.name == 'p':
-                    if child.stripped_strings!=[]:
+                    if child.stripped_strings != []:
                         period = list(child.stripped_strings)[0]
                 elif child.name == 'div':
                     if child.table:
@@ -60,14 +59,14 @@ def extract_values_from_profile(soup):
                                 names = row.find_all('th')
                                 names = [name.string for name in names]
                             elif row.name == 'tr':
-                                info={}
+                                info = {}
                                 if period:
-                                    info['period']=period
+                                    info['period'] = period
                                 contents = row.find_all('td')
                                 contents = [list(content.stripped_strings)[0] for content in contents]
-                                info.update(dict(zip(names,contents)))
+                                info.update(dict(zip(names, contents)))
                                 value.append(info)
-                elif isinstance(child,bs4.NavigableString):
+                elif isinstance(child, bs4.NavigableString):
                     continue
             variablevalue = value
         elif variablename == 'OENACE 2008':
@@ -92,7 +91,7 @@ def extract_values_from_profile(soup):
             if headings != []:
                 for header in headings:
                     header = list(header.stripped_strings)[0]
-                    variablevalue.append({'comment':header})
+                    variablevalue.append({'comment': header})
             # each table contains one Niederlassung, every table can have rows on address, phone number, ...
             if tables != []:
                 for table in tables:
@@ -154,7 +153,8 @@ def extract_values_from_profile(soup):
             info = {}
             for item in variablevalue.find_all('li'):
                 if item.a:
-                    info[item.a.string] = item.a['href']
+                    info['name'] = item.a.string
+                    info['link'] = item.a['href']
             variablevalue = info
         elif variablename in {'Ringbeteiligung'}:
             if variablevalue.find('span', attrs={'class': 'checked'}):
@@ -174,54 +174,60 @@ def extract_values_from_profile(soup):
                 info['function'] = variablename
                 if child.p:
                     continue
-                elif child.b != None:
-                    type_of = child.b.string
-                    type_of.replace("\xc2\xa0", "")
-                    type_of.replace("\xa0", "")
-                    type_of = re.sub('\s+', ' ', type_of)
-                    type_of.strip()
-                elif child.a != None:
-                    if type_of:
-                        info['type'] = type_of
-                    link = child.a['href']
-                    info['link'] = link
-                    name = child.a.string
-                    info['name'] = name
-                    if 'geb.' in child.text:
-                        birthdate_index = child.text.find('geb.')
-                        start_index = birthdate_index + 5
-                        end_index = birthdate_index + 15
-                        birthdate = child.text[start_index:end_index]
-                        info['birthdate'] = birthdate
-                    if 'Anteil' in child.text:
-                        p = re.compile('Anteil: ([\w %,.]*)[)]')
-                        info['anteil'] = p.search(str(child.text)).group(1)
-                    if child.br != None and child.br.string != None:
-                        comment1 = child.br.string
-                        info['comment1'] = comment1
-                    if child.text.strip()[0:5] != name[0:5]:
-                        comment2 = child.text.strip()
-                        comment2 = re.sub(r'\s+', ' ', comment2).strip()
-                        info['comment2'] = comment2
-                    variablevalue.append(info)
-                elif child.stripped_strings != None and list(child.stripped_strings) != []:
-                    if type_of:
-                        info['type'] = type_of
-                    if '(' in list(child.stripped_strings)[0]:
-                        parenthesis_open = list(child.stripped_strings)[0].find('(')
-                        parenthesis_close = list(child.stripped_strings)[0].find(')')
-                        comment = list(child.stripped_strings)[0][parenthesis_open + 1:parenthesis_close]
-                        name = list(child.stripped_strings)[0][:parenthesis_open - 1]
-                        info['name'] = name
-                        info['comment'] = comment
-                    else:
-                        name = child.text
-                        info['name'] = name
-                    variablevalue.append(info)
                 else:
-                    continue
+                    if child.b:
+                        type_of = child.b.string
+                        type_of.replace("\xc2\xa0", "")
+                        type_of.replace("\xa0", "")
+                        type_of = re.sub('\s+', ' ', type_of)
+                        type_of.strip()
+                    if child.a:
+                        if type_of:
+                            info['type'] = type_of
+                        link = child.a['href']
+                        info['link'] = link
+                        name = child.a.string
+                        info['name'] = name
+                        if 'geb.' in child.text:
+                            birthdate_index = child.text.find('geb.')
+                            start_index = birthdate_index + 5
+                            end_index = birthdate_index + 15
+                            birthdate = child.text[start_index:end_index]
+                            info['birthdate'] = birthdate
+                        if 'Anteil' in child.text:
+                            p = re.compile('Anteil: ([\w %,.€]*)[)]')
+                            info['anteil'] = p.search(str(child.text)).group(1)
+                        if child.br != None and child.br.string != None:
+                            comment1 = child.br.string
+                            info['comment1'] = comment1
+                        if child.text.strip()[0:5] != name[0:5]:
+                            comment2 = child.text.strip()
+                            comment2 = re.sub(r'\s+', ' ', comment2).strip()
+                            info['comment2'] = comment2
+                        if '(' in child.text and '(Anteil' not in child.text:
+                            comment3_pattern = re.compile('[(]([\w ,]+)[)]')
+                            comment3_re = comment3_pattern.search(str(child.text))
+                            if comment3_re:
+                                info['comment3'] = comment3_re.group(1)
+                        variablevalue.append(info)
+                    elif child.stripped_strings and list(child.stripped_strings) != []:
+                        if type_of:
+                            info['type'] = type_of
+                        if '(' in list(child.stripped_strings)[0]:
+                            parenthesis_open = list(child.stripped_strings)[0].find('(')
+                            parenthesis_close = list(child.stripped_strings)[0].find(')')
+                            comment = list(child.stripped_strings)[0][parenthesis_open + 1:parenthesis_close]
+                            name = list(child.stripped_strings)[0][:parenthesis_open - 1]
+                            info['name'] = name
+                            info['comment'] = comment
+                        else:
+                            name = child.text
+                            info['name'] = name
+                        variablevalue.append(info)
+                    else:
+                        continue
         elif variablename in {'Tätigkeit lt. Recherche'}:
-            variablevalue =' '.join(variablevalue.stripped_strings)
+            variablevalue = ' '.join(variablevalue.stripped_strings)
         elif variablename in {'Kapital'}:
             kapital = variablevalue.stripped_strings
             variablevalue = []
@@ -270,7 +276,7 @@ def extract_values_from_profile(soup):
                 variablevalue.append(info)
         elif variablename in {'Suchbegriff(e)'}:
             variablevalue = list(variablevalue.stripped_strings)
-            variablevalue = [{'value':value} for value in variablevalue]
+            variablevalue = [{'value': value} for value in variablevalue]
         elif variablename in {'Beschäftigte', 'Umsatz', 'EGT', 'Cashflow'}:
             variablevalues = variablevalue.stripped_strings
             variablevalue = []

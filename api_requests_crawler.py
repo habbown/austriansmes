@@ -334,15 +334,24 @@ engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logi
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
 con = engine.connect()
-basicdata.to_sql(name="BasicData", con=con, if_exists='append')
-numericdata.to_sql(name="NumericData", con=con, if_exists='append')
-administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
-bilanzdata.to_sql(name="BilanzData", con=con, if_exists='append')
-contactdata.to_sql(name="ContactData", con=con, if_exists='append')
-searchdata.to_sql(name="SearchData", con=con, if_exists='append')
-abschlussdata.to_sql(name="Abschluss", con=con, if_exists='append')
-niederlassungsdata.to_sql(name="Niederlassungen", con=con, if_exists='append')
-rechtstatsachendata.to_sql(name="Rechtstatsachen", con=con, if_exists='append')
+if not basicdata.empty:
+    basicdata.to_sql(name="BasicData", con=con, if_exists='append')
+if not numericdata.empty:
+    numericdata.to_sql(name="NumericData", con=con, if_exists='append')
+if not administrativedata.empty:
+    administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
+if not bilanzdata.empty:
+    bilanzdata.to_sql(name="BilanzData", con=con, if_exists='append')
+if not contactdata.empty:
+    contactdata.to_sql(name="ContactData", con=con, if_exists='append')
+if not searchdata.empty:
+    searchdata.to_sql(name="SearchData", con=con, if_exists='append')
+if not abschlussdata.empty:
+    abschlussdata.to_sql(name="Abschluss", con=con, if_exists='append')
+if not niederlassungsdata.empty:
+    niederlassungsdata.to_sql(name="Niederlassungen", con=con, if_exists='append')
+if not rechtstatsachendata.empty:
+    rechtstatsachendata.to_sql(name="Rechtstatsachen", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
