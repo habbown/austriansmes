@@ -4,10 +4,91 @@ import locale
 import pprint
 import re
 import unicodedata
+import logindata
 
 # should we convert every string extracted from the page from navigable string to normal string?
 
 locale.setlocale(locale.LC_ALL, '')
+
+url_login = "https://daten.compass.at/sso/login/process"  # URL to login to Compass
+url_search = "https://daten.compass.at/FirmenCompass"  # url to post requests for company search
+url_bilanz = "https://daten.compass.at/FirmenCompass/Bilanz"  # url to post requests for financial statements
+url_compass = "https://daten.compass.at"
+
+login = {  # data needed to login to Compass
+    "targetUrl": "/compassDienste/startseite",
+    "userDomain": "916F8E",
+    "username": logindata.username,
+    "password": logindata.password,
+    "_saveLogin": "false",
+    "loginSubmit": "Login"
+}
+
+bilanz_data = {  # data needed to search for financial statements
+    "PageID": "916F8E",
+    "onr": "",  # extract from company profile
+    "id": "",  # extract from company profile, unique bilanz identifier
+    "format": "htmltable",
+    "erstellen": "Anzeigen"
+}
+
+'''
+search_data = {  # data needed to search for company
+        "PageID": "916F8E",
+        "p": "suche",
+        "suchwort": "",  # change by company
+        "suchartid": "",  # 'F' for name, 'A' for address
+        "suchbldid": "Oe"
+    }
+'''
+
+
+def find_company(company, session, byaddress=False):
+    more_than_one_company = None
+    no_company = None
+    too_many_companies = None
+    search_data = {  # data needed to search for company
+        "PageID": "916F8E",
+        "p": "suche",
+        "suchwort": "",  # change by company
+        "suchartid": "",  # 'F' for name, 'A' for address
+        "suchbldid": "Oe"
+    }
+    if not byaddress:
+        search_data["suchwort"] = company['name'][0:38]
+        search_data["suchartid"] = 'F'
+    else:
+        search_data["suchwort"] = company['address'][0:38]
+        search_data["suchartid"] = 'A'
+
+    result_profil = session.post(url_search, data=search_data)
+
+    soup = BeautifulSoup(result_profil.text, 'html.parser')
+
+    more_than_one_company = soup.find('h2', attrs={'id': 'result_summary'})
+    no_company = soup.find('span', attrs={'id': 'result_summary'})
+    too_many_companies = soup.find('div', attrs={'class': 'message warning'})
+    if more_than_one_company or no_company or too_many_companies:
+        if not byaddress:
+            print("No unique company by name")
+            soup = find_company(company, session, True)
+        else:
+            print("No unique company by address")
+            if more_than_one_company:
+                print("More than one company")
+                tag = soup.find('a', string=re.compile(str(company['name'][1:-1])))
+                if tag:
+                    print(tag['href'])
+                    result_profil = session.post(url_compass + tag['href'])
+                    soup = BeautifulSoup(result_profil.text, 'html.parser')
+                else:
+                    print("No company found")
+                    return False
+            else:
+                print("No company found")
+                return False
+            # complain a lot, throw exception, ...
+    return soup
 
 
 # takes in the source code of a profile page and extracts all values from the page
@@ -38,13 +119,14 @@ def extract_values_from_profile(soup):
                 info['name'] = name
             variablevalue = [info]
         elif variablename in {'Ediktsdatei'}:
-            for item in variablevalue.stripped_strings:
-                if item.parent.name == 'a':
-                    link = item.parent['href']
-                    linktext = item
-                else:
-                    comment = item
-            variablevalue = {'link': link, 'linktext': linktext, 'comment': comment}
+            info={}
+            for item in variablevalue.contents:
+                print(item)
+                if item.name == 'a':
+                    info['link'] = item['href']
+                    info['linktext'] = str(item.string).strip()
+                elif isinstance(item,bs4.NavigableString):
+                    info['comment'] = str(item).strip()
         elif variablename in {'EU-Agrarförderungen'}:
             value = []
             period = None
@@ -319,6 +401,14 @@ def extract_values_from_profile(soup):
         else:
             continue
         values[beautify(variablename)] = variablevalue
+
+    if (soup.find('ul', attrs={'class': 'links'})
+        and soup.find('ul', attrs={'class': 'links'}).find('li', attrs={'class': 'last'})).a:
+        onr_re = re.compile('onr=(\d*)')
+        onr = onr_re.search(soup.find('ul', attrs={'class': 'links'}).find('li', attrs={'class': 'last'}).a['href'])
+        if onr:
+            onr = onr.group(1)
+            values['Compass-ID(ONR)'] = onr
     return values  # want to flatten out dictionary first and improve some minor errors (type for Eigentümer and so on)
 
 

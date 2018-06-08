@@ -9,33 +9,36 @@
 #               'port':'PORT'}
 #
 # replace words in capitals
-import time
-import crawler
-import requests
-from bs4 import BeautifulSoup
-import csv
+import time  # to measure time it takes
+import requests  # handling the HTTP requests
+from bs4 import BeautifulSoup  # read HTML pages
+import csv  # read company names from csv
+import locale  # properly read in numbers written with , for comma and . as thousands separator
+import statistics  # statistics.mean
+import re  # regular expressions
+from sqlalchemy import create_engine  # for the SQL database
+import pprint  # nice printing
 
-import locale
-import statistics
-import re
-
-from sqlalchemy import create_engine
-
-locale.setlocale(locale.LC_ALL, '')
-import pprint
-import logindata
-import pandas as pd
+import pandas as pd  # write data to dataframe in order to write out to SQL db
 import pymysql  # keep, is needed for SQL engine
 
-company_list = []
+import crawler  # functions to extract values
+import logindata  # logindata to Compass and SQL db
 
+locale.setlocale(locale.LC_ALL, '')  # set locale so that numbers are read correctly
+
+# some timing
 time_requests = []
 time_scraping_profile = []
 time_scraping_bilanz = []
 
-''' ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
+'''
+ fields still to take care of
+ ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
                    'Bankleitzahl']
 '''
+
+# variablenames for the SQL tables
 names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
                    'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
                    'Korrespondenz', 'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
@@ -43,72 +46,43 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
                    'Import', 'Export', 'Markennamen', 'gelöscht', 'Gründungsprivilegierung'
                    ]
 names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
-
 names_searchdata = ['Suchbegriff(e)', 'OENACE.2008']
-
 names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
-
 names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
                             'Kontrollorgane']
-
-names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail','Gewerbedaten']
-
+names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Gewerbedaten']
 names_niederlassungsdata = ['Niederlassungen']
-
 names_rechtstatsachen = ['Rechtstatsachen']
 
 time_start = time.time()
+
+# read in company data, from file with columns titled 'Company Name' and 'Address Line 1'
+# Company Name should contain the name of the company name, Address Line 1 the street name and number
+company_list = []
 with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
     csvreader = csv.DictReader(csvfile)
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-start_index = 0
-end_index = 4
-
+# set start and end index for which company's to extract
+start_index = 17
+end_index = 22
 company_list = company_list[start_index:end_index]
 
 pprint.pprint(company_list)
 
 time_after_reading_data = time.time()
 
-url_login = "https://daten.compass.at/sso/login/process"
-url = "https://daten.compass.at/FirmenCompass"
-url_bilanz = "https://daten.compass.at/FirmenCompass/Bilanz"
-
+# start a requests session in order to save cookies etc.
 session_requests = requests.Session()
-login = {
-    "targetUrl": "/compassDienste/startseite",
-    "userDomain": "916F8E",
-    "username": logindata.username,
-    "password": logindata.password,
-    "_saveLogin": "false",
-    "loginSubmit": "Login"
-}
 
 time_requests.append(time.time())
-result = session_requests.post(url_login, data=login, headers=dict(referer=url_login))
+result = session_requests.post(crawler.url_login, data=crawler.login, headers=dict(referer=crawler.url_login))
 time_requests[-1] = time.time() - time_requests[-1]
 
 time_requests.append(time.time())
-result = session_requests.get(url, headers=dict(referer=url))
+result = session_requests.get(crawler.url_search, headers=dict(referer=crawler.url_compass))
 time_requests[-1] = time.time() - time_requests[-1]
-
-search_data = {
-    "PageID": "916F8E",
-    "p": "suche",
-    "suchwort": "",  # change by company
-    "suchartid": "F",  # 'F' for name, 'A' for address
-    "suchbldid": "Oe"
-}
-
-bilanz_data = {
-    "PageID": "916F8E",
-    "onr": "",  # extract from company profile
-    "id": "",  # extract from company profile, unique bilanz identifier
-    "format": "htmltable",
-    "erstellen": "Anzeigen"
-}
 
 time_before_loop = time.time()
 
@@ -132,52 +106,12 @@ for company in company_list:
     index += 1
     values = {}
 
-    #
-    search_data["suchartid"] = "F"
-    search_data["suchwort"] = company['name'][0:38]  # if company name length > ~41, then no search results are found
     time_requests.append(time.time())
-    result_profil = session_requests.post(result.url, data=search_data)
+    soup = crawler.find_company(company, session_requests, False)
     time_requests[-1] = time.time() - time_requests[-1]
-    soup = BeautifulSoup(result_profil.text, 'html.parser')
 
-    # check whether more than one company was found and try in a different way
-    result_summary = soup.find('h2', attrs={'id': 'result_summary'})
-    if not result_summary:  # if not more than one company was found, check whether no company was found
-        result_summary = soup.find('span', attrs={'id': 'result_summary'})
-        if not result_summary:  # another option is that too many companies were found: (e.g., Spar)
-            result_summary = soup.find('div', attrs={'class': 'message warning'})
-            if result_summary:
-                result_summary = result_summary.div
-
-    if result_summary:  # when search by company name doesn't succeed (when no company is found(/ > 1 company found)
-        # search by address
-        print('No unique company by name')
-        search_data["suchartid"] = "A"
-        search_data["suchwort"] = company['address'][0:38]
-        time_requests.append(time.time())
-        result_profil = session_requests.post(result.url, data=search_data)
-        time_requests[-1] = time.time() - time_requests[-1]
-        soup = BeautifulSoup(result_profil.text, 'html.parser')
-        # if not unique, match by name (if no search result go back to looking by name?)
-        if soup.find('h2', attrs={'id': 'result_summary'}):
-            tag = soup.find('a', string=re.compile(str(company['name'][1:-1])))
-            onr_re = re.compile('onr=(\d*)')
-            onr = onr_re.search(str(tag))
-            if onr:
-                onr = onr.group(1)
-                values['Compass-ID(ONR)'] = onr
-                result_profil = session_requests.post(result.url, {'p': 'betrieb', 'onr': onr, 'PageID': '916F8E'})
-                soup = BeautifulSoup(result_profil.text, 'html.parser')
-
-    # if we still don't have a company profile page in our soup, we'll continue
-    result_summary = None
-    result_summary = soup.find('h2', attrs={'id': 'result_summary'})
-
-    if not result_summary:  # if not more than one company was found, check whether no company was found
-        result_summary = soup.find('span', attrs={'id': 'result_summary'})
-
-    if result_summary:
-        print('No unique company by address either')
+    #print(soup)
+    if not soup:
         continue
 
     # assume now that we have a company profile in our soup:
@@ -185,15 +119,10 @@ for company in company_list:
     values.update(crawler.extract_values_from_profile(soup))
     time_scraping_profile[-1] = time.time() - time_scraping_profile[-1]
 
-    # extract onr (Compass ID for companies)
-    onr_pattern = re.compile('onr=(\d+)')
-    onr_re = onr_pattern.search(result_profil.url)
-    if onr_re:
-        values['Compass-ID(ONR)'] = onr_re.group(1)
-
     # read in Bilanzdata, and extract id's
     form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
     for form in form_list:
+        bilanz_data = crawler.bilanz_data
         id_number = None
         onr_number = None
         if form.find('input', attrs={'name': 'onr', 'type': 'hidden'}):
@@ -204,7 +133,7 @@ for company in company_list:
             bilanz_data['onr'] = onr_number
             bilanz_data['id'] = id_number
             time_requests.append(time.time())
-            bilanz = session_requests.post(url_bilanz, data=bilanz_data)
+            bilanz = session_requests.post(crawler.url_bilanz, data=bilanz_data)
             time_requests[-1] = time.time() - time_requests[-1]
             bilanz_soup = BeautifulSoup(bilanz.text, 'html.parser')
             time_scraping_bilanz.append(time.time())
@@ -248,12 +177,12 @@ for company in company_list:
 
     values_niederlassungsdata = {key: value for key, value in values.items() if key in names_niederlassungsdata}
     values_niederlassungsdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
-                            in values_niederlassungsdata.items() for info in value]
+                                 in values_niederlassungsdata.items() for info in value]
     list_niederlassungsdata.extend(values_niederlassungsdata)
 
     values_rechtstatsachen = {key: value for key, value in values.items() if key in names_rechtstatsachen}
-    values_rechtstatsachen= [{'FN': values['FN'], 'type': key, 'number':key1,'text':value1} for key, value
-                            in values_rechtstatsachen.items() for key1,value1 in value.items()]
+    values_rechtstatsachen = [{'FN': values['FN'], 'type': key, 'number': key1, 'text': value1} for key, value
+                              in values_rechtstatsachen.items() for key1, value1 in value.items()]
     list_rechtstatsachen.extend(values_rechtstatsachen)
 
 # print('#################')
@@ -328,7 +257,6 @@ print("time_for_pd", time_for_pd)
 
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
-
 
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
