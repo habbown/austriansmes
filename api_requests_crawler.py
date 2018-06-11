@@ -34,8 +34,7 @@ time_scraping_bilanz = []
 
 '''
  fields still to take care of
- ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Boersennotiert',
-                   'Bankleitzahl']
+ ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Bankleitzahl']
 '''
 
 # variablenames for the SQL tables
@@ -43,16 +42,18 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
                    'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
                    'Korrespondenz', 'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
                    'Taetigkeit.lt..Recherche', 'Telefon', 'UID', 'Korrespondenz', 'Produkte',
-                   'Import', 'Export', 'Markennamen', 'gelöscht', 'Gründungsprivilegierung'
-                   ]
+                   'Import', 'Export', 'Markennamen', 'gelöscht', 'Gründungsprivilegierung', 'Ringbeteiligung',
+                   'Boersennotiert', 'Firmenwortlaut']
 names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
-names_searchdata = ['Suchbegriff(e)', 'OENACE.2008']
+names_searchdata = ['Suchbegriff(e)', 'OENACE.2008','Historische.Adressen','Historische.Firmenwortlaute',
+                    'Bankleitzahl(en)']
 names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
 names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
                             'Kontrollorgane']
-names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Gewerbedaten']
+names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Gewerbedaten','Ediktsdatei']
 names_niederlassungsdata = ['Niederlassungen']
 names_rechtstatsachen = ['Rechtstatsachen']
+names_agrarfoerderungen = ['EU-Agrarfoerderungen']
 
 time_start = time.time()
 
@@ -65,8 +66,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 # set start and end index for which company's to extract
-start_index = 17
-end_index = 22
+start_index = 0
+end_index = 5
 company_list = company_list[start_index:end_index]
 
 pprint.pprint(company_list)
@@ -80,9 +81,11 @@ time_requests.append(time.time())
 result = session_requests.post(crawler.url_login, data=crawler.login, headers=dict(referer=crawler.url_login))
 time_requests[-1] = time.time() - time_requests[-1]
 
+'''
 time_requests.append(time.time())
 result = session_requests.get(crawler.url_search, headers=dict(referer=crawler.url_compass))
 time_requests[-1] = time.time() - time_requests[-1]
+'''
 
 time_before_loop = time.time()
 
@@ -97,6 +100,7 @@ list_searchdata = []
 list_abschlussdata = []
 list_niederlassungsdata = []
 list_rechtstatsachen = []
+list_agrarfoerderungen = []
 
 for company in company_list:
     print('#####################')
@@ -153,8 +157,8 @@ for company in company_list:
     list_numericdata.extend(values_numericdata)
 
     values_contactdata = {key: value for key, value in values.items() if key in names_contactdata}
-    values_contactdata = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value in values_contactdata.items()
-                          for info in value]
+    values_contactdata = [dict(info, **{'FN': values['FN'], 'field_name': key}) for key, value
+                          in values_contactdata.items() for info in value]
     list_contactdata.extend(values_contactdata)
 
     values_administrativedata = [value for key, value in values.items() if key in names_administrativedata]
@@ -184,6 +188,11 @@ for company in company_list:
     values_rechtstatsachen = [{'FN': values['FN'], 'type': key, 'number': key1, 'text': value1} for key, value
                               in values_rechtstatsachen.items() for key1, value1 in value.items()]
     list_rechtstatsachen.extend(values_rechtstatsachen)
+
+    values_agrarfoerderungen = {key: value for key, value in values.items() if key in names_agrarfoerderungen}
+    values_agrarfoerderungen = [dict(info, **{'FN': values['FN'], 'field_name': key}) for key, value
+                                 in values_agrarfoerderungen.items() for info in value]
+    list_agrarfoerderungen.extend(values_agrarfoerderungen)
 
 # print('#################')
 # print('extracted:')
@@ -248,6 +257,7 @@ searchdata = pd.DataFrame(list_searchdata)
 abschlussdata = pd.DataFrame(list_abschlussdata)
 niederlassungsdata = pd.DataFrame(list_niederlassungsdata)
 rechtstatsachendata = pd.DataFrame(list_rechtstatsachen)
+agrarfoerderungendata = pd.DataFrame(list_agrarfoerderungen)
 # pprint.pprint(administrativedata)
 
 
@@ -280,6 +290,8 @@ if not niederlassungsdata.empty:
     niederlassungsdata.to_sql(name="Niederlassungen", con=con, if_exists='append')
 if not rechtstatsachendata.empty:
     rechtstatsachendata.to_sql(name="Rechtstatsachen", con=con, if_exists='append')
+if not agrarfoerderungendata.empty:
+    agrarfoerderungendata.to_sql(name="EU_Agrarfoerderungen", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
