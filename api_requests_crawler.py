@@ -45,12 +45,12 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
                    'Import', 'Export', 'Markennamen', 'gelöscht', 'Gründungsprivilegierung', 'Ringbeteiligung',
                    'Boersennotiert', 'Firmenwortlaut']
 names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
-names_searchdata = ['Suchbegriff(e)', 'OENACE.2008','Historische.Adressen','Historische.Firmenwortlaute',
+names_searchdata = ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute',
                     'Bankleitzahl(en)']
 names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
 names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
                             'Kontrollorgane']
-names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Gewerbedaten','Ediktsdatei']
+names_contactdata = ['Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Gewerbedaten', 'Ediktsdatei']
 names_niederlassungsdata = ['Niederlassungen']
 names_rechtstatsachen = ['Rechtstatsachen']
 names_agrarfoerderungen = ['EU-Agrarfoerderungen']
@@ -114,7 +114,7 @@ for company in company_list:
     soup = crawler.find_company(company, session_requests, False)
     time_requests[-1] = time.time() - time_requests[-1]
 
-    #print(soup)
+    # print(soup)
     if not soup:
         continue
 
@@ -191,7 +191,7 @@ for company in company_list:
 
     values_agrarfoerderungen = {key: value for key, value in values.items() if key in names_agrarfoerderungen}
     values_agrarfoerderungen = [dict(info, **{'FN': values['FN'], 'field_name': key}) for key, value
-                                 in values_agrarfoerderungen.items() for info in value]
+                                in values_agrarfoerderungen.items() for info in value]
     list_agrarfoerderungen.extend(values_agrarfoerderungen)
 
 # print('#################')
