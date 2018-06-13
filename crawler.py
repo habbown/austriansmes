@@ -76,7 +76,7 @@ def find_company(company, session, byaddress=False):
             print("No unique company by address")
             if more_than_one_company:
                 print("More than one company")
-                tag = soup.find('a', string=re.compile(str(company['name'][1:-1])))
+                tag = soup.find('a', string=re.compile(re.escape(company['name'][1:-1].lower()),re.I))
                 if tag:
                     print(tag['href'])
                     result_profil = session.post(url_compass + tag['href'])
@@ -204,17 +204,20 @@ def extract_values_from_profile(soup):
                 info['function'] = variablename
                 # in case of div, there's two span tags inside of which the first contains the information and the second a link to a diagram
                 if child.name == 'div' and child.span:
-                    if child.span.a:
-                        link = child.span.a['href']
-                        info['link'] = link
-                        name = child.span.a.string
-                        info['name'] = name
-                    if 'geb.' in child.text:
-                        birthdate_index = child.text.find('geb.')
-                        start_index = birthdate_index + 5
-                        end_index = birthdate_index + 15
-                        birthdate = child.text[start_index:end_index]
-                        info['birthdate'] = birthdate
+                    if child.span.a or 'geb.' in child.text:
+                        if child.span.a:
+                            link = child.span.a['href']
+                            info['link'] = link
+                            name = child.span.a.string
+                            info['name'] = name
+                        if 'geb.' in child.text:
+                            birthdate_index = child.text.find('geb.')
+                            start_index = birthdate_index + 5
+                            end_index = birthdate_index + 15
+                            birthdate = child.text[start_index:end_index]
+                            info['birthdate'] = birthdate
+                    else:
+                        continue
                 elif child.name == 'p':  # in case of a p tag, there's either information about a person or extra text
                     comment = ' '.join(list(child.stripped_strings))
                     info['comment'] = re.sub(r'\s+', ' ', comment).strip()
@@ -232,12 +235,14 @@ def extract_values_from_profile(soup):
             for child in variablevalue_children:
                 variablevalue[child.b.string] = list(child.stripped_strings)[1]
         elif variablename in {'Firmeninformationen'}:
-            info = {}
+            value = []
             for item in variablevalue.find_all('li'):
+                info = {}
                 if item.a:
                     info['name'] = item.a.string
                     info['link'] = item.a['href']
-            variablevalue = info
+                value.append(info)
+            variablevalue = value
         elif variablename in {'Ringbeteiligung','Börsennotiert'}:
             if variablevalue.find('span', attrs={'class': 'checked'}):
                 variablevalue = variablevalue.find('span', attrs={'class': 'checked'})

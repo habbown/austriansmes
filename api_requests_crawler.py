@@ -34,7 +34,7 @@ time_scraping_bilanz = []
 
 '''
  fields still to take care of
- ['Gewerbedaten','Ediktsdatei', 'weitere.Informationen', 'Bankleitzahl']
+ [ 'weitere.Informationen']
 '''
 
 # variablenames for the SQL tables
@@ -66,8 +66,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 # set start and end index for which company's to extract
-start_index = 0
-end_index = 5
+start_index =167
+end_index = 168
 company_list = company_list[start_index:end_index]
 
 pprint.pprint(company_list)
@@ -268,30 +268,31 @@ print("time_for_pd", time_for_pd)
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
 
+
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
 con = engine.connect()
 if not basicdata.empty:
-    basicdata.to_sql(name="BasicData", con=con, if_exists='append')
+    basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append')
 if not numericdata.empty:
-    numericdata.to_sql(name="NumericData", con=con, if_exists='append')
+    numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append')
 if not administrativedata.empty:
-    administrativedata.to_sql(name="AdministrativeData", con=con, if_exists='append')
+    administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append')
 if not bilanzdata.empty:
-    bilanzdata.to_sql(name="BilanzData", con=con, if_exists='append')
+    bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append')
 if not contactdata.empty:
-    contactdata.to_sql(name="ContactData", con=con, if_exists='append')
+    contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append')
 if not searchdata.empty:
-    searchdata.to_sql(name="SearchData", con=con, if_exists='append')
+    searchdata.to_sql(name="SearchDataTemp", con=con, if_exists='append')
 if not abschlussdata.empty:
-    abschlussdata.to_sql(name="Abschluss", con=con, if_exists='append')
+    abschlussdata.to_sql(name="AbschlussTemp", con=con, if_exists='append')
 if not niederlassungsdata.empty:
-    niederlassungsdata.to_sql(name="Niederlassungen", con=con, if_exists='append')
+    niederlassungsdata.to_sql(name="NiederlassungenTemp", con=con, if_exists='append')
 if not rechtstatsachendata.empty:
-    rechtstatsachendata.to_sql(name="Rechtstatsachen", con=con, if_exists='append')
+    rechtstatsachendata.to_sql(name="RechtstatsachenTemp", con=con, if_exists='append')
 if not agrarfoerderungendata.empty:
-    agrarfoerderungendata.to_sql(name="EU_Agrarfoerderungen", con=con, if_exists='append')
+    agrarfoerderungendata.to_sql(name="EU_AgrarfoerderungenTemp", con=con, if_exists='append')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
