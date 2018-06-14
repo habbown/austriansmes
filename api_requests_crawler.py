@@ -32,18 +32,14 @@ time_requests = []
 time_scraping_profile = []
 time_scraping_bilanz = []
 
-'''
- fields still to take care of
- [ 'weitere.Informationen']
-'''
 
 # variablenames for the SQL tables
 names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
                    'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
                    'Korrespondenz', 'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
                    'Taetigkeit.lt..Recherche', 'Telefon', 'UID', 'Korrespondenz', 'Produkte',
-                   'Import', 'Export', 'Markennamen', 'gelöscht', 'Gründungsprivilegierung', 'Ringbeteiligung',
-                   'Boersennotiert', 'Firmenwortlaut']
+                   'Import', 'Export', 'Markennamen', 'geloescht', 'Gruendungsprivilegierung', 'Ringbeteiligung',
+                   'Boersennotiert', 'Firmenwortlaut', 'Zusaetzliche.Angaben']
 names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
 names_searchdata = ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute',
                     'Bankleitzahl(en)']
@@ -67,7 +63,7 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
 
 # set start and end index for which company's to extract
 start_index = 0
-end_index = 10
+end_index = 30
 company_list = company_list[start_index:end_index]
 
 pprint.pprint(company_list)
@@ -243,7 +239,7 @@ print("time_for_pd", time_for_pd)
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
 
-'''
+
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
@@ -271,4 +267,4 @@ if not agrarfoerderungendata.empty:
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
-'''
+

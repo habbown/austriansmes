@@ -67,9 +67,8 @@ def find_company(company, session, byaddress=False):
             print("No unique company by address")
             if more_than_one_company:
                 print("More than one company")
-                tag = soup.find('a', string=re.compile(re.escape(company['name'][1:-1].lower()), re.I))
+                tag = soup.find('a', string=re.compile(re.escape(company['name'][0:39].lower()), re.I))
                 if tag:
-                    print(tag['href'])
                     result_profil = session.post(url_compass + tag['href'])
                     soup = BeautifulSoup(result_profil.text, 'html.parser')
                 else:
@@ -111,7 +110,7 @@ def extract_values_from_profile(soup):
     fn = fn_box.text.strip()[3:]
     values['FN'] = fn
     if soup.find('h1', attrs={'class': 'geloescht'}):
-        values['gelöscht'] = soup.find('h1', attrs={'class': 'geloescht'}).string
+        values['geloescht'] = soup.find('h1', attrs={'class': 'geloescht'}).string
 
     div = soup.find('div', attrs={'class': 'content'})
 
@@ -213,6 +212,8 @@ def extract_values_from_profile(soup):
             variablevalue = []
             for child in variablevalue_children:
                 info = {}
+                name = None
+                comment = None
                 info['FN'] = fn
                 info['function'] = variablename
                 # in case of div, there's two span tags inside of which the
@@ -242,7 +243,8 @@ def extract_values_from_profile(soup):
                         info['name'] = name
                 elif child.stripped_strings == []:
                     continue
-                variablevalue.append(info)
+                if name or comment:
+                    variablevalue.append(info)
         elif variablename in {'Rechtstatsachen'}:
             variablevalue_children = variablevalue.find_all('p')
             variablevalue = {}
@@ -257,7 +259,7 @@ def extract_values_from_profile(soup):
                     info['link'] = item.a['href']
                 value.append(info)
             variablevalue = value
-        elif variablename in {'Ringbeteiligung', 'Börsennotiert'}:
+        elif variablename in {'Ringbeteiligung', 'Börsennotiert', 'Gründungsprivilegierung'}:
             if variablevalue.find('span', attrs={'class': 'checked'}):
                 variablevalue = variablevalue.find('span', attrs={'class': 'checked'})
         elif variablename in {'Eigentümer', 'Management', 'Beteiligungen', 'Kontrollorgane'}:
@@ -271,6 +273,7 @@ def extract_values_from_profile(soup):
             type_of = None
             for child in variablevalue_children:
                 info = {}
+                name = None
                 info['FN'] = fn
                 info['function'] = variablename
                 if child.p:
@@ -278,10 +281,11 @@ def extract_values_from_profile(soup):
                 else:
                     if child.b:
                         type_of = child.b.string
+                        child.b.decompose()
                         type_of.replace("\xc2\xa0", "")
                         type_of.replace("\xa0", "")
-                        type_of = re.sub('\s+', '', type_of)
-                        type_of.strip()
+                        type_of = re.sub('\s+', ' ', type_of)
+                        type_of = re.sub('^ | $', '', type_of)
                     if child.a:
                         if type_of:
                             info['type'] = type_of
@@ -298,10 +302,11 @@ def extract_values_from_profile(soup):
                         if 'Anteil' in child.text:
                             p = re.compile('Anteil: ([\w %,.€]*)[)]')
                             info['anteil'] = p.search(str(child.text)).group(1)
-                        if child.br != None and child.br.string != None:
-                            comment1 = child.br.string
+                        if (child.find('span', attrs={'class': 'smalltext'}) and
+                                child.find('span', attrs={'class': 'smalltext'}).string):
+                            comment1 = child.find('span', attrs={'class': 'smalltext'}).string
                             info['comment1'] = comment1
-                        if child.text.strip()[0:5] != name[0:5]:
+                        if child.text.strip()[0:5] != name[0:5] and child.text.strip()[0:5] != type_of[0:5]:
                             comment2 = child.text.strip()
                             comment2 = re.sub(r'\s+', ' ', comment2).strip()
                             info['comment2'] = comment2
@@ -326,6 +331,10 @@ def extract_values_from_profile(soup):
                         else:
                             name = child.text
                             info['name'] = name
+                        if type_of and type_of in name:  # this is ugly but we want to prevent that the same
+                            # string is extracted as both the name and the type of a person, a better way to
+                            # prevent this would be to only look for the b-tag outside of the name
+                            continue
                         variablevalue.append(info)
                     else:
                         continue
@@ -369,7 +378,7 @@ def extract_values_from_profile(soup):
             if ';' in variablevalue:
                 index = variablevalue.find(';')
                 variablevalue = variablevalue[:index]
-        elif variablename in {'Bankverbindung', 'Internet-Adressen', 'E-Mail'}:
+        elif variablename in {'Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Weitere Informationen'}:
             children = variablevalue.find_all('a')
             variablevalue = []
             for child in children:
@@ -436,8 +445,8 @@ def extract_values_from_profile(soup):
     return values  # want to flatten out dictionary first and improve some minor errors (type for Eigentümer and so on)
 
 
-def beautify(
-        string):  # takes in a string, replaces commas by ; (so we  can export to csv), spaces by '.' and replace umlaute and ß
+def beautify(string):
+    # takes in a string, replaces commas by ; (so we  can export to csv), spaces by '.' and replace umlaute and ß
     string = string.replace('\n', ' ')
     string = ' '.join(string.split())
     string = string.translate(
@@ -449,7 +458,8 @@ def beautify(
 
 
 def extract_values_from_table(table, prefix=[]):
-    # takes in a table tag, a prefix (to prepend the variablenames with), and a dictionary it adds values to (is that good or
+    # takes in a table tag, a prefix (to prepend the variablenames with),
+    #  and a dictionary it adds values to (is that good or
     # wouldn't it be better to just return a dictionary containing the values extracted from the table?)
     tr_list = table.children
     values = {}
@@ -544,10 +554,9 @@ def extract_values_from_bilanz(soup):
     if bilanz:
         values.update(extract_values_from_div(bilanz))
 
-    guvrechnung = soup.find('div',attrs={'class': 'gewinn-verlust'})
+    guvrechnung = soup.find('div', attrs={'class': 'gewinn-verlust'})
     if guvrechnung:
         values.update(extract_values_from_div(guvrechnung))
-
 
     infotext = soup.find_all('div', attrs={'class', 'infotext'})
     if len(infotext) > 0:
