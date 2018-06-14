@@ -507,7 +507,7 @@ def extract_values_from_div(div, prefix=[]):
     div_children = [x for x in div_children if not isinstance(x, bs4.NavigableString)]
     for child in div_children:
         if child.name == 'h3':
-            title = child.string
+            title = beautify(child.string)
         elif child.name == 'div':
             values.update(extract_values_from_div(child, prefix + [title]))
         elif child.name == 'table':
@@ -540,8 +540,14 @@ def extract_values_from_bilanz(soup):
         name = beautify(name)
         values[title + '_' + name] = child.find(attrs={'class': 'content'}).string
 
-    div = soup.find('div', attrs={'class': 'table-container'})
-    values.update(extract_values_from_div(div, prefix=[title]))
+    bilanz = soup.find('div', attrs={'class': 'bilanz'})
+    if bilanz:
+        values.update(extract_values_from_div(bilanz))
+
+    guvrechnung = soup.find('div',attrs={'class': 'gewinn-verlust'})
+    if guvrechnung:
+        values.update(extract_values_from_div(guvrechnung))
+
 
     infotext = soup.find_all('div', attrs={'class', 'infotext'})
     if len(infotext) > 0:
