@@ -91,6 +91,27 @@ def find_company(company, session, byaddress=False):
     return soup
 
 
+def get_company_values(soup,session):
+    values = extract_values_from_profile(soup)
+
+    # get Compass-id's of the financial statements, go to the pages and extract the values
+    form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
+    for form in form_list:
+        id_number = None
+        onr_number = None
+        if form.find('input', attrs={'name': 'onr', 'type': 'hidden'}):
+            onr_number = form.find('input', attrs={'name': 'onr', 'type': 'hidden'})['value']
+        if form.find('input', attrs={'name': 'id', 'type': 'hidden'}):
+            id_number = form.find('input', attrs={'name': 'id', 'type': 'hidden'})['value']
+        if id_number and onr_number:
+            bilanz_data['onr'] = onr_number
+            bilanz_data['id'] = id_number
+            bilanz = session.post(url_bilanz, data=bilanz_data)
+            bilanz_soup = BeautifulSoup(bilanz.text, 'html.parser')
+            values.update(extract_values_from_bilanz(bilanz_soup))
+
+    return values
+
 # takes in the source code of a profile page and extracts all values from the page
 def extract_values_from_profile(soup):
     values = {}

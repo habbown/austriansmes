@@ -66,8 +66,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 # set start and end index for which company's to extract
-start_index =167
-end_index = 168
+start_index = 0
+end_index = 10
 company_list = company_list[start_index:end_index]
 
 pprint.pprint(company_list)
@@ -118,36 +118,11 @@ for company in company_list:
     if not soup:
         continue
 
-    # assume now that we have a company profile in our soup:
-    time_scraping_profile.append(time.time())
-    values.update(crawler.extract_values_from_profile(soup))
-    time_scraping_profile[-1] = time.time() - time_scraping_profile[-1]
-
-    # read in Bilanzdata, and extract id's
-    form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
-    for form in form_list:
-        bilanz_data = crawler.bilanz_data
-        id_number = None
-        onr_number = None
-        if form.find('input', attrs={'name': 'onr', 'type': 'hidden'}):
-            onr_number = form.find('input', attrs={'name': 'onr', 'type': 'hidden'})['value']
-        if form.find('input', attrs={'name': 'id', 'type': 'hidden'}):
-            id_number = form.find('input', attrs={'name': 'id', 'type': 'hidden'})['value']
-        if id_number and onr_number:
-            bilanz_data['onr'] = onr_number
-            bilanz_data['id'] = id_number
-            time_requests.append(time.time())
-            bilanz = session_requests.post(crawler.url_bilanz, data=bilanz_data)
-            time_requests[-1] = time.time() - time_requests[-1]
-            bilanz_soup = BeautifulSoup(bilanz.text, 'html.parser')
-            time_scraping_bilanz.append(time.time())
-            values.update(crawler.extract_values_from_bilanz(bilanz_soup))
-            time_scraping_bilanz[-1] = time.time() - time_scraping_bilanz[-1]
-
+    values = crawler.get_company_values(soup, session_requests)
     pprint.pprint(values)
+
+
     #  put collected values into a list of dictionaries, at end convert to dataframe
-    # values_basicdata = {}
-    # pprint.pprint(values)
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
     list_basicdata.append(values_basicdata)
     # print(list_basicdata)
@@ -268,7 +243,7 @@ print("time_for_pd", time_for_pd)
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
 
-
+'''
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
@@ -296,3 +271,4 @@ if not agrarfoerderungendata.empty:
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
+'''
