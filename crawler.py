@@ -32,28 +32,19 @@ bilanz_data = {  # data needed to search for financial statements
     "erstellen": "Anzeigen"
 }
 
-'''
 search_data = {  # data needed to search for company
-        "PageID": "916F8E",
-        "p": "suche",
-        "suchwort": "",  # change by company
-        "suchartid": "",  # 'F' for name, 'A' for address
-        "suchbldid": "Oe"
-    }
-'''
+    "PageID": "916F8E",
+    "p": "suche",
+    "suchwort": "",  # change by company
+    "suchartid": "",  # 'F' for name, 'A' for address
+    "suchbldid": "Oe"
+}
 
 
 def find_company(company, session, byaddress=False):
     more_than_one_company = None
     no_company = None
     too_many_companies = None
-    search_data = {  # data needed to search for company
-        "PageID": "916F8E",
-        "p": "suche",
-        "suchwort": "",  # change by company
-        "suchartid": "",  # 'F' for name, 'A' for address
-        "suchbldid": "Oe"
-    }
     if not byaddress:
         search_data["suchwort"] = company['name'][0:38]
         search_data["suchartid"] = 'F'
@@ -76,7 +67,7 @@ def find_company(company, session, byaddress=False):
             print("No unique company by address")
             if more_than_one_company:
                 print("More than one company")
-                tag = soup.find('a', string=re.compile(re.escape(company['name'][1:-1].lower()),re.I))
+                tag = soup.find('a', string=re.compile(re.escape(company['name'][1:-1].lower()), re.I))
                 if tag:
                     print(tag['href'])
                     result_profil = session.post(url_compass + tag['href'])
@@ -91,7 +82,7 @@ def find_company(company, session, byaddress=False):
     return soup
 
 
-def get_company_values(soup,session):
+def get_company_values(soup, session):
     values = extract_values_from_profile(soup)
 
     # get Compass-id's of the financial statements, go to the pages and extract the values
@@ -111,6 +102,7 @@ def get_company_values(soup,session):
             values.update(extract_values_from_bilanz(bilanz_soup))
 
     return values
+
 
 # takes in the source code of a profile page and extracts all values from the page
 def extract_values_from_profile(soup):
@@ -211,9 +203,9 @@ def extract_values_from_profile(soup):
                 variablevalue = []
                 for list_element in variablevalues:
                     list_element = '; '.join(list(list_element.stripped_strings))
-                    variablevalue.append({'value':list_element})
+                    variablevalue.append({'value': list_element})
             else:
-                variablevalue =[{'value':'; '.join(list(variablevalue.stripped_strings))}]
+                variablevalue = [{'value': '; '.join(list(variablevalue.stripped_strings))}]
         elif variablename in {'Adresse', 'Postanschrift'}:
             variablevalue = '; '.join(list(variablevalue.stripped_strings))
         elif variablename in {'Wirtschaftlicher Eigentümer'}:
@@ -223,7 +215,8 @@ def extract_values_from_profile(soup):
                 info = {}
                 info['FN'] = fn
                 info['function'] = variablename
-                # in case of div, there's two span tags inside of which the first contains the information and the second a link to a diagram
+                # in case of div, there's two span tags inside of which the
+                #  first contains the information and the second a link to a diagram
                 if child.name == 'div' and child.span:
                     if child.span.a or 'geb.' in child.text:
                         if child.span.a:
@@ -264,7 +257,7 @@ def extract_values_from_profile(soup):
                     info['link'] = item.a['href']
                 value.append(info)
             variablevalue = value
-        elif variablename in {'Ringbeteiligung','Börsennotiert'}:
+        elif variablename in {'Ringbeteiligung', 'Börsennotiert'}:
             if variablevalue.find('span', attrs={'class': 'checked'}):
                 variablevalue = variablevalue.find('span', attrs={'class': 'checked'})
         elif variablename in {'Eigentümer', 'Management', 'Beteiligungen', 'Kontrollorgane'}:
@@ -426,7 +419,7 @@ def extract_values_from_profile(soup):
                 variablevalue.append(info)
         elif variablename in {'Bankleitzahlen'}:
             variablevalue = list(variablevalue.stripped_strings)
-            variablevalue = [{'value':value} for value in variablevalue]
+            variablevalue = [{'value': value} for value in variablevalue]
         elif variablevalue.string:
             variablevalue = re.sub(r'\s+', ' ', variablevalue.string).strip()
         else:
@@ -455,10 +448,11 @@ def beautify(
     # by double quotes (#)
 
 
-def extract_values_from_table(table, prefix=[], values={}):
+def extract_values_from_table(table, prefix=[]):
     # takes in a table tag, a prefix (to prepend the variablenames with), and a dictionary it adds values to (is that good or
     # wouldn't it be better to just return a dictionary containing the values extracted from the table?)
     tr_list = table.children
+    values = {}
     # if table.tbody:
     #    tr_list = table.tbody.children
     tr_list = [x for x in tr_list if not isinstance(x, bs4.NavigableString) and x.name == 'tr']
@@ -470,7 +464,7 @@ def extract_values_from_table(table, prefix=[], values={}):
         # of a subtable add it to the prefix, if it contains values, put them into the table, ...
         if ('class', ['title', 'main', 'indent']) in tr.attrs.items() or ('class', ['title']) in tr.attrs.items() or (
                 'class', ['title', 'main']) in tr.attrs.items():
-            if tr.find('td', attrs={'class': 'value'}).string == None:
+            if not tr.find('td', attrs={'class': 'value'}).string:
                 title = beautify(tr.find('td', attrs={'class': 'text'}).string)
             else:
                 variablename = '_'.join(prefix) + '_' + (tr.find('td', attrs={'class': 'text'}).string)
@@ -480,7 +474,7 @@ def extract_values_from_table(table, prefix=[], values={}):
             table_list = tr.td.children
             table_list = [x for x in table_list if not isinstance(x, bs4.NavigableString) and x.name == 'table']
             for table_element in table_list:
-                extract_values_from_table(table_element, prefix + [title], values)
+                values.update(extract_values_from_table(table_element, prefix + [title]))
         elif ('class', ['indent']) in tr.attrs.items():
             if tr.find('td', attrs={'class': 'text single'}) != None:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find('td', attrs={'class': 'text single'}).string)
@@ -503,9 +497,11 @@ def extract_values_from_table(table, prefix=[], values={}):
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text single'}).string)
             value = locale.atof(tr.find(attrs={'class': 'value'}).string)
             values[variablename] = value
+    return values
 
 
-def extract_values_from_div(div, prefix=[], values={}):
+def extract_values_from_div(div, prefix=[]):
+    values = {}
     title = ''
     div_children = div.children
     div_children = [x for x in div_children if not isinstance(x, bs4.NavigableString)]
@@ -513,14 +509,15 @@ def extract_values_from_div(div, prefix=[], values={}):
         if child.name == 'h3':
             title = child.string
         elif child.name == 'div':
-            extract_values_from_div(child, prefix + [title], values)
+            values.update(extract_values_from_div(child, prefix + [title]))
         elif child.name == 'table':
             if ('class', ['header']) in child.attrs.items():
                 continue
             elif ('class', ['bilanz-footer']) in child.attrs.items():
-                extract_values_from_table(child, prefix + [title], values=values)
+                values.update(extract_values_from_table(child, prefix + [title]))
             elif child.attrs == {}:
-                extract_values_from_table(child, prefix + [title], values=values)
+                values.update(extract_values_from_table(child, prefix + [title]))
+    return values
 
 
 def extract_values_from_bilanz(soup):
@@ -544,7 +541,7 @@ def extract_values_from_bilanz(soup):
         values[title + '_' + name] = child.find(attrs={'class': 'content'}).string
 
     div = soup.find('div', attrs={'class': 'table-container'})
-    extract_values_from_div(div, prefix=[title], values=values)
+    values.update(extract_values_from_div(div, prefix=[title]))
 
     infotext = soup.find_all('div', attrs={'class', 'infotext'})
     if len(infotext) > 0:
