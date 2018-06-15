@@ -5,6 +5,10 @@ import pprint
 import re
 import unicodedata
 import logindata
+import pyodbc
+from sqlalchemy import create_engine
+import pymysql
+import pandas as pd
 
 # should we convert every string extracted from the page from navigable string to normal string?
 
@@ -261,7 +265,7 @@ def extract_values_from_profile(soup):
             variablevalue = value
         elif variablename in {'Ringbeteiligung', 'Börsennotiert', 'Gründungsprivilegierung'}:
             if variablevalue.find('span', attrs={'class': 'checked'}):
-                variablevalue = variablevalue.find('span', attrs={'class': 'checked'})
+                variablevalue = variablevalue.find('span', attrs={'class': 'checked'}).string
         elif variablename in {'Eigentümer', 'Management', 'Beteiligungen', 'Kontrollorgane'}:
             # those fields are not completely the same (explaining why the code isn't as nice as it could be), one of
             # these has nested p tags (explaining why we don't just go to through the children but through all p tags,
@@ -564,3 +568,46 @@ def extract_values_from_bilanz(soup):
         infotext = re.sub(r'\s+', ' ', infotext).strip()
         values[title + '_' + 'infotext'] = infotext
     return values
+
+
+def update_tables():  # downloads all SQL-Tables, concatenates every temp table with the permanent one, and
+    # deletes the
+    DB_NAME = "compassdata"
+    engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
+                      "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
+    engine = create_engine(engine_address, encoding='utf-8')
+    con = engine.connect()
+
+    connStr = (
+            r'user=' + logindata.sql_config['user'] + r';' +
+            r'password=' + logindata.sql_config['password'] + r';' +
+            r'server=' + logindata.sql_config['host'] + r';' +
+            r'port=' + logindata.sql_config['port'] + r';' +
+            r'database=' + logindata.sql_config['database'] + ';' +
+            r'driver={Devart ODBC Driver for MySQL};'
+    )
+
+    cnxn = pyodbc.connect(connStr)  # set up a connection to the db
+    crsr = cnxn.cursor()  # and construct a cursor
+
+    crsr.execute("SHOW TABLES")
+    names = [row[0] for row in crsr.fetchall()]
+    temp_names = [name for name in names if name.endswith("Temp")]
+    perm_names = [name for name in names if name not in temp_names]
+    for table_name in perm_names:
+        if table_name + "Temp" in temp_names:
+            perm_table = pd.read_sql_table(table_name, con, index_col='index')
+            temp_table = pd.read_sql_table(table_name + "Temp", con, index_col='index')
+            new_table = pd.concat([perm_table, temp_table], ignore_index=True, sort=False)
+            new_table.to_sql(name=table_name, con=con, if_exists='replace')
+            temp_names.remove(table_name + 'Temp')
+            crsr.execute("DROP TABLE " + table_name + "Temp")
+            print("Appended" + table_name + "Temp to " + table_name)
+    cnxn.commit()
+    for table_name in temp_names:
+        crsr.execute("RENAME TABLE " + table_name + " TO " + table_name[:-4])
+        print("Renamed " + table_name + " to " + table_name[:-4])
+    cnxn.commit()
+    crsr.close()
+    cnxn.close()
+    con.close()

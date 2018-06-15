@@ -62,11 +62,11 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 # set start and end index for which company's to extract
-start_index = 0
-end_index = 30
+start_index = 10
+end_index = 50
 company_list = company_list[start_index:end_index]
 
-pprint.pprint(company_list)
+#pprint.pprint(company_list)
 
 time_after_reading_data = time.time()
 
@@ -115,7 +115,7 @@ for company in company_list:
         continue
 
     values = crawler.get_company_values(soup, session_requests)
-    pprint.pprint(values)
+    #pprint.pprint(values)
 
 
     #  put collected values into a list of dictionaries, at end convert to dataframe
@@ -164,6 +164,7 @@ for company in company_list:
     values_agrarfoerderungen = [dict(info, **{'FN': values['FN'], 'field_name': key}) for key, value
                                 in values_agrarfoerderungen.items() for info in value]
     list_agrarfoerderungen.extend(values_agrarfoerderungen)
+
 
 # print('#################')
 # print('extracted:')
@@ -231,6 +232,7 @@ rechtstatsachendata = pd.DataFrame(list_rechtstatsachen)
 agrarfoerderungendata = pd.DataFrame(list_agrarfoerderungen)
 # pprint.pprint(administrativedata)
 
+print(niederlassungsdata)
 
 contactdata = pd.DataFrame(list_contactdata)
 time_for_pd = time.time() - time_for_pd
@@ -245,15 +247,15 @@ engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logi
 engine = create_engine(engine_address, encoding='utf-8')
 con = engine.connect()
 if not basicdata.empty:
-    basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append')
+   basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append')
 if not numericdata.empty:
-    numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append')
+  numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append')
 if not administrativedata.empty:
-    administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append')
+  administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append')
 if not bilanzdata.empty:
-    bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append')
+  bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append')
 if not contactdata.empty:
-    contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append')
+  contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append')
 if not searchdata.empty:
     searchdata.to_sql(name="SearchDataTemp", con=con, if_exists='append')
 if not abschlussdata.empty:
@@ -268,3 +270,4 @@ con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
 
+crawler.update_tables()
