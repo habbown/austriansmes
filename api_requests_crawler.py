@@ -62,8 +62,8 @@ with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 # set start and end index for which company's to extract
-start_index = 10
-end_index = 50
+start_index = 100
+end_index = 200
 company_list = company_list[start_index:end_index]
 
 #pprint.pprint(company_list)
