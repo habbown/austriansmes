@@ -304,7 +304,7 @@ def extract_values_from_profile(soup):
                             birthdate = child.text[start_index:end_index]
                             info['birthdate'] = birthdate
                         if 'Anteil' in child.text:
-                            p = re.compile('Anteil: ([\w %,.€]*)[)]')
+                            p = re.compile('Anteil: ([^)]*)[)]')
                             info['anteil'] = p.search(str(child.text)).group(1)
                         if (child.find('span', attrs={'class': 'smalltext'}) and
                                 child.find('span', attrs={'class': 'smalltext'}).string):
@@ -509,8 +509,9 @@ def extract_values_from_table(table, prefix=[]):
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text'}).string)
             elif tr.find(attrs={'class': 'textsingle'}).string:
                 variablename = '_'.join(prefix) + '_' + beautify(tr.find(attrs={'class': 'text single'}).string)
-            value = locale.atof(tr.find(attrs={'class': 'value'}).string)
-            values[variablename] = value
+            if tr.find(attrs={'class': 'value'}) and tr.find(attrs={'class': 'value'}).string:
+                value = locale.atof(tr.find(attrs={'class': 'value'}).string)
+                values[variablename] = value
     return values
 
 
@@ -602,7 +603,7 @@ def update_tables():  # downloads all SQL-Tables, concatenates every temp table 
             new_table.to_sql(name=table_name, con=con, if_exists='replace')
             temp_names.remove(table_name + 'Temp')
             crsr.execute("DROP TABLE " + table_name + "Temp")
-            print("Appended" + table_name + "Temp to " + table_name)
+            print("Appended " + table_name + "Temp to " + table_name)
     cnxn.commit()
     for table_name in temp_names:
         crsr.execute("RENAME TABLE " + table_name + " TO " + table_name[:-4])

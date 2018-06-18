@@ -28,10 +28,9 @@ import logindata  # logindata to Compass and SQL db
 locale.setlocale(locale.LC_ALL, '')  # set locale so that numbers are read correctly
 
 # some timing
-time_requests = []
-time_scraping_profile = []
-time_scraping_bilanz = []
-
+time_requests = list()
+time_scraping_profile = list()
+time_scraping_bilanz = list()
 
 # variablenames for the SQL tables
 names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
@@ -39,10 +38,10 @@ names_basicdata = ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adr
                    'Korrespondenz', 'Letzte.Eintragung', 'OeNB.Identnummer', 'Rechtsform', 'Sitz.in',
                    'Taetigkeit.lt..Recherche', 'Telefon', 'UID', 'Korrespondenz', 'Produkte',
                    'Import', 'Export', 'Markennamen', 'geloescht', 'Gruendungsprivilegierung', 'Ringbeteiligung',
-                   'Boersennotiert', 'Firmenwortlaut', 'Zusaetzliche.Angaben']
+                   'Boersennotiert', 'Firmenwortlaut', 'Zusaetzliche.Angaben',
+                   'Bankleitzahl(en)']
 names_abschluss = ['Jahresabschluss', 'Konzernabschluss']
-names_searchdata = ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute',
-                    'Bankleitzahl(en)']
+names_searchdata = ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute']
 names_numericdata = ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow']
 names_administrativedata = ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
                             'Kontrollorgane']
@@ -56,17 +55,17 @@ time_start = time.time()
 # read in company data, from file with columns titled 'Company Name' and 'Address Line 1'
 # Company Name should contain the name of the company name, Address Line 1 the street name and number
 company_list = []
-with open('hoovers2to2.3_subset.csv', newline='', encoding='utf-8') as csvfile:
+with open('dnbhoovers_revenueatleast70m.csv', newline='', encoding='utf-8') as csvfile:
     csvreader = csv.DictReader(csvfile)
     for row in csvreader:
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
-# set start and end index for which company's to extract
-start_index = 100
-end_index = 200
+# set start and end index to decide which companies to extract
+start_index = 10
+end_index = 100
 company_list = company_list[start_index:end_index]
 
-#pprint.pprint(company_list)
+# pprint.pprint(company_list)
 
 time_after_reading_data = time.time()
 
@@ -113,10 +112,11 @@ for company in company_list:
     # print(soup)
     if not soup:
         continue
-
-    values = crawler.get_company_values(soup, session_requests)
-    #pprint.pprint(values)
-
+    try:
+        values = crawler.get_company_values(soup, session_requests)
+    except Exception as e:
+        print(f'Could not extract values with error message: {e}')
+    # pprint.pprint(values)
 
     #  put collected values into a list of dictionaries, at end convert to dataframe
     values_basicdata = {key: value for key, value in values.items() if key in names_basicdata}
@@ -164,7 +164,6 @@ for company in company_list:
     values_agrarfoerderungen = [dict(info, **{'FN': values['FN'], 'field_name': key}) for key, value
                                 in values_agrarfoerderungen.items() for info in value]
     list_agrarfoerderungen.extend(values_agrarfoerderungen)
-
 
 # print('#################')
 # print('extracted:')
@@ -247,25 +246,35 @@ engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logi
 engine = create_engine(engine_address, encoding='utf-8')
 con = engine.connect()
 if not basicdata.empty:
-   basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append')
+    basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append')
+    basicdata.to_csv('basicdata.csv', encoding='utf-8')
 if not numericdata.empty:
-  numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append')
+    numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append')
+    numericdata.to_csv('numericdata.csv', encoding='utf-8')
 if not administrativedata.empty:
-  administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append')
+    administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append')
+    administrativedata.to_csv('administrativedata.csv', encoding='utf-8')
 if not bilanzdata.empty:
-  bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append')
+    bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append')
+    bilanzdata.to_csv('bilanzdata.csv', encoding='utf-8')
 if not contactdata.empty:
-  contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append')
+    contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append')
+    contactdata.to_csv('contactdata.csv', encoding='utf-8')
 if not searchdata.empty:
     searchdata.to_sql(name="SearchDataTemp", con=con, if_exists='append')
+    searchdata.to_csv('searchdata.csv', encoding='utf-8')
 if not abschlussdata.empty:
     abschlussdata.to_sql(name="AbschlussTemp", con=con, if_exists='append')
+    abschlussdata.to_csv('abschlussdata.csv', encoding='utf-8')
 if not niederlassungsdata.empty:
     niederlassungsdata.to_sql(name="NiederlassungenTemp", con=con, if_exists='append')
+    niederlassungsdata.to_csv('niederlassungsdata.csv', encoding='utf-8')
 if not rechtstatsachendata.empty:
     rechtstatsachendata.to_sql(name="RechtstatsachenTemp", con=con, if_exists='append')
+    rechtstatsachendata.to_csv('rechtstatsachendata.csv', encoding='utf-8')
 if not agrarfoerderungendata.empty:
     agrarfoerderungendata.to_sql(name="EU_AgrarfoerderungenTemp", con=con, if_exists='append')
+    agrarfoerderungendata.to_csv('agrarfoerderungendata.csv', encoding='utf-8')
 con.close()
 time_for_sql = time.time() - time_for_sql
 print("time_for_sql", time_for_sql)
