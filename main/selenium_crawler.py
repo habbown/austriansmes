@@ -2,9 +2,7 @@
 
 from bs4 import BeautifulSoup
 import locale
-import crawler
-import pprint
-import time
+from main import crawler
 import logindata
 
 from selenium.webdriver.common.by import By

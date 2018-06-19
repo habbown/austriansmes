@@ -12,18 +12,14 @@
 # test
 import time  # to measure time it takes
 import requests  # handling the HTTP requests
-from bs4 import BeautifulSoup  # read HTML pages
 import csv  # read company names from csv
 import locale  # properly read in numbers written with , for comma and . as thousands separator
 import statistics  # statistics.mean
-import re  # regular expressions
 from sqlalchemy import create_engine  # for the SQL database
-import pprint  # nice printing
 
 import pandas as pd  # write data to dataframe in order to write out to SQL db
-import pymysql  # keep, is needed for SQL engine
 
-import crawler  # functions to extract values
+from main import crawler
 import logindata  # logindata to Compass and SQL db
 
 locale.setlocale(locale.LC_ALL, '')  # set locale so that numbers are read correctly

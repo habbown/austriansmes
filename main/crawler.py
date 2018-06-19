@@ -5,10 +5,12 @@ import pprint
 import re
 import unicodedata
 import logindata
+import requests
 import pyodbc
 from sqlalchemy import create_engine
 import pymysql
 import pandas as pd
+from tqdm import tqdm
 
 # should we convert every string extracted from the page from navigable string to normal string?
 
@@ -43,6 +45,34 @@ search_data = {  # data needed to search for company
     "suchartid": "",  # 'F' for name, 'A' for address
     "suchbldid": "Oe"
 }
+
+
+def run_crawling(file: str, encoding: str = 'utf-8', range: tuple = (0, 100)):
+    index_start, index_end = range
+
+    try:
+        df = pd.read_csv(filepath_or_buffer=file,
+                         encoding=encoding)
+    except (ValueError, UnicodeEncodeError):
+        return
+
+    df.rename(columns={'Company Name': 'name',
+                       'Address Line 1': 'address'},
+              inplace=True)
+
+    session_requests = requests.Session()
+    session_requests.post(url_login,
+                          data=login,
+                          headers=dict(referer=url_login))
+    progress_df = tqdm(iterable=df[index_start:index_end].iterrows(),
+                       total=abs(index_end - index_start),
+                       desc='::: Scraping companies :::')
+
+    for idx, row in progress_df:
+        http_return = find_company(company=row,
+                                   session=session_requests)
+        get_company_values(soup=http_return,
+                           session=session_requests)
 
 
 def find_company(company, session, byaddress=False):
@@ -601,7 +631,7 @@ def update_tables():  # downloads all SQL-Tables, concatenates every temp table 
             temp_table = pd.read_sql_table(table_name + "Temp", con, index_col='index')
             new_table = pd.concat([perm_table, temp_table], ignore_index=True, sort=False)
             new_table = new_table.drop_duplicates().reset_index(drop=True)
-            new_table.to_sql(name=table_name, con=con, if_exists='replace',chunksize=10000)
+            new_table.to_sql(name=table_name, con=con, if_exists='replace', chunksize=10000)
             temp_names.remove(table_name + 'Temp')
             crsr.execute("DROP TABLE " + table_name + "Temp")
             print("Appended " + table_name + "Temp to " + table_name)

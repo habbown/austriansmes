@@ -8,3 +8,6 @@ requests
 bs4
 pymysql
 pyodbc
+
+# progress bar
+tqdm
