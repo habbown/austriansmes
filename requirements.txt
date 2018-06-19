@@ -1,0 +1,10 @@
+# data structures
+pandas
+
+# web/db-related
+sqlalchemy
+logindata; sys_platform != 'win32'
+requests
+bs4
+pymysql
+pyodbc
