@@ -62,7 +62,7 @@ with open('dnbhoovers_revenueatleast70m.csv', newline='', encoding='utf-8') as c
         company_list.append({'name': row["Company Name"], 'address': row["Address Line 1"]})
 
 # set start and end index to decide which companies to extract
-start_index = 10
+start_index = 0
 end_index = 100
 company_list = company_list[start_index:end_index]
 
@@ -232,7 +232,6 @@ rechtstatsachendata = pd.DataFrame(list_rechtstatsachen)
 agrarfoerderungendata = pd.DataFrame(list_agrarfoerderungen)
 # pprint.pprint(administrativedata)
 
-print(niederlassungsdata)
 
 contactdata = pd.DataFrame(list_contactdata)
 time_for_pd = time.time() - time_for_pd
@@ -241,40 +240,39 @@ print("time_for_pd", time_for_pd)
 time_for_sql = time.time()
 DB_NAME = 'compassdata'
 
-
 engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
                   "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
 engine = create_engine(engine_address, encoding='utf-8')
 con = engine.connect()
 if not basicdata.empty:
-    basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append')
+    basicdata.to_sql(name="BasicDataTemp", con=con, if_exists='append', chunksize=10000)
     basicdata.to_csv('basicdata.csv', encoding='utf-8')
 if not numericdata.empty:
-    numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append')
+    numericdata.to_sql(name="NumericDataTemp", con=con, if_exists='append', chunksize=10000)
     numericdata.to_csv('numericdata.csv', encoding='utf-8')
 if not administrativedata.empty:
-    administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append')
+    administrativedata.to_sql(name="AdministrativeDataTemp", con=con, if_exists='append', chunksize=10000)
     administrativedata.to_csv('administrativedata.csv', encoding='utf-8')
 if not bilanzdata.empty:
-    bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append')
+    bilanzdata.to_sql(name="BilanzDataTemp", con=con, if_exists='append', chunksize=10000)
     bilanzdata.to_csv('bilanzdata.csv', encoding='utf-8')
 if not contactdata.empty:
-    contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append')
+    contactdata.to_sql(name="ContactDataTemp", con=con, if_exists='append', chunksize=10000)
     contactdata.to_csv('contactdata.csv', encoding='utf-8')
 if not searchdata.empty:
-    searchdata.to_sql(name="SearchDataTemp", con=con, if_exists='append')
+    searchdata.to_sql(name="SearchDataTemp", con=con, if_exists='append', chunksize=10000)
     searchdata.to_csv('searchdata.csv', encoding='utf-8')
 if not abschlussdata.empty:
-    abschlussdata.to_sql(name="AbschlussTemp", con=con, if_exists='append')
+    abschlussdata.to_sql(name="AbschlussTemp", con=con, if_exists='append', chunksize=10000)
     abschlussdata.to_csv('abschlussdata.csv', encoding='utf-8')
 if not niederlassungsdata.empty:
-    niederlassungsdata.to_sql(name="NiederlassungenTemp", con=con, if_exists='append')
+    niederlassungsdata.to_sql(name="NiederlassungenTemp", con=con, if_exists='append', chunksize=10000)
     niederlassungsdata.to_csv('niederlassungsdata.csv', encoding='utf-8')
 if not rechtstatsachendata.empty:
-    rechtstatsachendata.to_sql(name="RechtstatsachenTemp", con=con, if_exists='append')
+    rechtstatsachendata.to_sql(name="RechtstatsachenTemp", con=con, if_exists='append', chunksize=10000)
     rechtstatsachendata.to_csv('rechtstatsachendata.csv', encoding='utf-8')
 if not agrarfoerderungendata.empty:
-    agrarfoerderungendata.to_sql(name="EU_AgrarfoerderungenTemp", con=con, if_exists='append')
+    agrarfoerderungendata.to_sql(name="EU_AgrarfoerderungenTemp", con=con, if_exists='append', chunksize=10000)
     agrarfoerderungendata.to_csv('agrarfoerderungendata.csv', encoding='utf-8')
 con.close()
 time_for_sql = time.time() - time_for_sql
