@@ -1,6 +1,9 @@
 import logindata
+import os
 
-DATA_HOOVERS_REVENUE_AT_LEAST_70M = 'dnbhoovers_revenueatleast70m.csv'
+DATA_HOOVERS_REVENUE_AT_LEAST_70M = os.path.join(os.getcwd(),
+                                                 'data',
+                                                 'dnbhoovers_revenueatleast70m.csv')
 TERMS_DICT = {
     'BASIC': ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
               'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
@@ -51,3 +54,22 @@ search_data = {  # data needed to search for company
     "suchartid": "",  # 'F' for name, 'A' for address
     "suchbldid": "Oe"
 }
+
+DB_NAME = "compassdata"
+ENGINE_ADRESS = ("mysql+pymysql://"
+                 + logindata.sql_config['user']
+                 + ":"
+                 + logindata.sql_config['password']
+                 + "@"
+                 + logindata.sql_config['host']
+                 + "/"
+                 + DB_NAME
+                 + "?charset=utf8")
+SQL_CONNECTION_STR = (
+        r'user=' + logindata.sql_config['user'] + r';' +
+        r'password=' + logindata.sql_config['password'] + r';' +
+        r'server=' + logindata.sql_config['host'] + r';' +
+        r'port=' + logindata.sql_config['port'] + r';' +
+        r'database=' + logindata.sql_config['database'] + ';' +
+        r'driver={Devart ODBC Driver for MySQL};'
+)

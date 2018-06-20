@@ -11,6 +11,7 @@ from sqlalchemy import create_engine
 import pymysql
 import pandas as pd
 from tqdm import tqdm
+from .settings import login_data, bilanz_data, search_data
 
 # should we convert every string extracted from the page from navigable string to normal string?
 
@@ -20,31 +21,6 @@ url_login = "https://daten.compass.at/sso/login/process"  # URL to login to Comp
 url_search = "https://daten.compass.at/FirmenCompass"  # url to post requests for company search
 url_bilanz = "https://daten.compass.at/FirmenCompass/Bilanz"  # url to post requests for financial statements
 url_compass = "https://daten.compass.at"
-
-login = {  # data needed to login to Compass
-    "targetUrl": "/compassDienste/startseite",
-    "userDomain": "916F8E",
-    "username": logindata.username,
-    "password": logindata.password,
-    "_saveLogin": "false",
-    "loginSubmit": "Login"
-}
-
-bilanz_data = {  # data needed to search for financial statements
-    "PageID": "916F8E",
-    "onr": "",  # extract from company profile
-    "id": "",  # extract from company profile, unique bilanz identifier
-    "format": "htmltable",
-    "erstellen": "Anzeigen"
-}
-
-search_data = {  # data needed to search for company
-    "PageID": "916F8E",
-    "p": "suche",
-    "suchwort": "",  # change by company
-    "suchartid": "",  # 'F' for name, 'A' for address
-    "suchbldid": "Oe"
-}
 
 
 def run_crawling(file: str, encoding: str = 'utf-8', range: tuple = (0, 100)):
@@ -62,7 +38,7 @@ def run_crawling(file: str, encoding: str = 'utf-8', range: tuple = (0, 100)):
 
     session_requests = requests.Session()
     session_requests.post(url_login,
-                          data=login,
+                          data=login_data,
                           headers=dict(referer=url_login))
     progress_df = tqdm(iterable=df[index_start:index_end].iterrows(),
                        total=abs(index_end - index_start),
