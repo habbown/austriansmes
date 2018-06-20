@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from .settings import login_data, SQL_CONNECTION_STR, ENGINE_ADRESS, OUTPUT_DIR
 import pyodbc
 import pandas as pd
+from .tools import timer
 import os
 
 
@@ -16,6 +17,7 @@ class Tables:
                            self.connection,
                            index_col='index')
 
+    @timer
     def commit_to_table(self, table_name: str, data: pd.DataFrame,
                         how: str = 'append',
                         filename: str = None):
