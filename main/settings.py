@@ -1,6 +1,8 @@
 import logindata
 import os
 
+OUTPUT_DIR: str = os.path.join(os.pardir(os.getcwd()), 'output')
+
 DATA_HOOVERS_REVENUE_AT_LEAST_70M = os.path.join(os.getcwd(),
                                                  'data',
                                                  'dnbhoovers_revenueatleast70m.csv')
