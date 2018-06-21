@@ -30,3 +30,11 @@ class Tables:
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, filename),
                         encoding='utf-8')
+
+    def sample(self, table_name: str, n: int, sort_by: str,
+               multi_index: list = None):
+        """Samples from a given table_name and returns a formatted DataFrame"""
+        df = self.get_table(table_name=table_name)
+        df_sampled_sorted = df.sample(n=n).sort_values(sort_by)
+
+        return df_sampled_sorted.set_index(multi_index) if multi_index else df_sampled_sorted
