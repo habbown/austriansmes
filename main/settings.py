@@ -1,7 +1,7 @@
 import logindata
 import os
 
-OUTPUT_DIR: str = os.path.join(os.pardir(os.getcwd()), 'output')
+OUTPUT_DIR: str = os.path.join(os.path.dirname(os.getcwd()), 'output')
 
 DATA_HOOVERS_REVENUE_AT_LEAST_70M = os.path.join(os.getcwd(),
                                                  'data',

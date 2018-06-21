@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from .settings import login_data, SQL_CONNECTION_STR, ENGINE_ADRESS, OUTPUT_DIR
 import pyodbc
 import pandas as pd
+import numpy as np
 from .tools import timer
 import os
 
@@ -31,10 +32,11 @@ class Tables:
             data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, filename),
                         encoding='utf-8')
 
-    def sample(self, table_name: str, n: int, sort_by: str,
-               multi_index: list = None):
+    def sample(self, table_name: str, n_companies: int, sort_by: str, multi_index: list = None,
+               n: int = 500):
         """Samples from a given table_name and returns a formatted DataFrame"""
         df = self.get_table(table_name=table_name)
-        df_sampled_sorted = df.sample(n=n).sort_values(sort_by)
+        sampled_companies = np.random.choice(df.FN.unique(), n_companies)
+        df_sampled_sorted = df[df.isin(sampled_companies)].sample(n=n).sort_values(sort_by)
 
         return df_sampled_sorted.set_index(multi_index) if multi_index else df_sampled_sorted
