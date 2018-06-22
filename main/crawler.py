@@ -45,10 +45,14 @@ class Crawler:
         values = self._extract_company_values(soup=http_return)
 
         for term_name, group_dict in TERMS_DICT.items():
-            term_values = list(v for k, v in values.items() if k in group_dict)
-
+            if term_name == 'BASIC':
+                term_values = [{key: value for key, value in values.items() if key in group_dict}]
+            else:
+                term_values = {key: value for key, value in values.items() if key in group_dict}
+                term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
+                                      in term_values.items() for info in value]
             if term_name in self.collection_dict and term_values:
-                self.collection_dict[term_name].append(term_values)
+                self.collection_dict[term_name].extend(term_values)
             else:
                 self.collection_dict[term_name] = term_values
 
