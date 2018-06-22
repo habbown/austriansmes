@@ -1,4 +1,4 @@
-import logindata
+from main import logindata
 import os
 
 OUTPUT_DIR: str = os.path.join(os.path.dirname(os.getcwd()), 'output')
