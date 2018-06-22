@@ -19,8 +19,7 @@ from sqlalchemy import create_engine  # for the SQL database
 
 import pandas as pd  # write data to dataframe in order to write out to SQL db
 
-from main import crawler
-import logindata  # logindata to Compass and SQL db
+from main import crawler, logindata
 
 locale.setlocale(locale.LC_ALL, '')  # set locale so that numbers are read correctly
 

@@ -45,7 +45,7 @@ class Crawler:
         values = self._extract_company_values(soup=http_return)
 
         for term_name, group_dict in TERMS_DICT.items():
-            if term_name == 'BASIC':
+            if term_name.startswith('Basic'):
                 term_values = [{key: value for key, value in values.items() if key in group_dict}]
             else:
                 term_values = {key: value for key, value in values.items() if key in group_dict}

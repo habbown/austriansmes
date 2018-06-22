@@ -2,8 +2,7 @@
 
 from bs4 import BeautifulSoup
 import locale
-from main import crawler
-import logindata
+from main import crawler, logindata
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait

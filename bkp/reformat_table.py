@@ -1,4 +1,4 @@
-import logindata
+from main import logindata
 import pyodbc
 from sqlalchemy import create_engine
 import pandas as pd
