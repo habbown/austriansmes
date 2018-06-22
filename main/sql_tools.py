@@ -20,9 +20,24 @@ class Tables:
                         data=pd.DataFrame(data),
                         filename=table_name + '.csv' if to_file else None)
 
+        self.update_tables()
+
     def update_tables(self):
-        for table_name in filter(lambda content: 'temp' in content, self.get_table_names):
-            pass
+        for table_name in filter(lambda content: 'temp' in content, self.table_names):
+            original_table = self.get(table_name=table_name.strip('temp'))
+            temporary_table = self.get(table_name=table_name)
+
+            concat_tables = pd.concat([original_table, temporary_table],
+                                      ignore_index=True,
+                                      sort=False)
+            concat_tables.drop_duplicates(inplace=True)
+
+            self.commit(table_name=table_name.strip('temp'),
+                        data=concat_tables.reset_index(drop=True),
+                        how='replace')
+            self.db_cursor.execute('DROP TABLE ' + table_name)
+
+        self._close_connection()
 
     def get(self, table_name: str):
         return pd.read_sql(table_name,
@@ -51,8 +66,13 @@ class Tables:
 
         return df_sampled_sorted.set_index(multi_index) if multi_index else df_sampled_sorted
 
+    def _close_connection(self):
+        self.connection.commit()
+        self.db_cursor.close()
+        self.connection.close()
+
     @property
-    def get_table_names(self):
+    def table_names(self):
         self.db_cursor.execute('Show Tables')
 
         return list(row[0] for row in self.db_cursor.fetchall())
