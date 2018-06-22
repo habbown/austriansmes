@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from .settings import login_data, SQL_CONNECTION_STR, ENGINE_ADRESS, OUTPUT_DIR
+from .settings import SQL_CONNECTION_STR, ENGINE_ADRESS, OUTPUT_DIR
 import pyodbc
 import pandas as pd
 import numpy as np

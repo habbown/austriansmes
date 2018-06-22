@@ -1,54 +1,110 @@
 import bs4
 from bs4 import BeautifulSoup
 import locale
-import pprint
 import re
-import unicodedata
 import logindata
 import requests
 import pyodbc
 from sqlalchemy import create_engine
-import pymysql
 import pandas as pd
 from tqdm import tqdm
 from .settings import login_data, bilanz_data, search_data
 
-# should we convert every string extracted from the page from navigable string to normal string?
-
 locale.setlocale(locale.LC_ALL, '')
+
+
+class Crawler:
+    session_requests = None
+
+    def __init__(self):
+        self.session_requests = requests.Session()
+        self.session_requests.post(url_login,
+                                   data=login_data,
+                                   headers=dict(referer=url_login))
+
+    def run_from_file(self, file: str, encoding: str = 'utf-8', range: tuple = (0, 100)):
+        index_start, index_end = range
+
+        try:
+            df = pd.read_csv(filepath_or_buffer=file,
+                             encoding=encoding)
+        except (ValueError, UnicodeEncodeError):
+            return
+
+        df.rename(columns={'Company Name': 'name',
+                           'Address Line 1': 'address'},
+                  inplace=True)
+        progress_df = tqdm(iterable=df[index_start:index_end].iterrows(),
+                           total=abs(index_end - index_start),
+                           desc='::: Scraping companies :::')
+
+        for idx, row in progress_df:
+            http_return = self._find_company(company=row)
+            self._get_company_values(soup=http_return)
+
+    @classmethod
+    def _find_company(cls, company, byaddress=False):
+        if not byaddress:
+            search_data["suchwort"] = company['name'][0:38]
+            search_data["suchartid"] = 'F'
+        else:
+            search_data["suchwort"] = company['address'][0:38]
+            search_data["suchartid"] = 'A'
+
+        result_profil = cls.session_requests.post(url_search, data=search_data)
+
+        soup = BeautifulSoup(result_profil.text, 'html.parser')
+
+        more_than_one_company = soup.find('h2', attrs={'id': 'result_summary'})
+        no_company = soup.find('span', attrs={'id': 'result_summary'})
+        too_many_companies = soup.find('div', attrs={'class': 'message warning'})
+        if more_than_one_company or no_company or too_many_companies:
+            if not byaddress:
+                print("No unique company by name")
+                soup = find_company(company, cls.session_requests, True)
+            else:
+                print("No unique company by address")
+                if more_than_one_company:
+                    print("More than one company")
+                    tag = soup.find('a', string=re.compile(re.escape(company['name'][0:39].lower()), re.I))
+                    if tag:
+                        result_profil = cls.session_requests.post(url_compass + tag['href'])
+                        soup = BeautifulSoup(result_profil.text, 'html.parser')
+                    else:
+                        print("No company found")
+                        return False
+                else:
+                    print("No company found")
+                    return False
+        return soup
+
+    @classmethod
+    def _get_company_values(cls, soup):
+        values = extract_values_from_profile(soup)
+
+        # get Compass-id's of the financial statements, go to the pages and extract the values
+        form_list = soup.find_all('form', attrs={'method': 'post', 'action': 'Bilanz', 'target': '_bank'})
+        for form in form_list:
+            id_number = None
+            onr_number = None
+            if form.find('input', attrs={'name': 'onr', 'type': 'hidden'}):
+                onr_number = form.find('input', attrs={'name': 'onr', 'type': 'hidden'})['value']
+            if form.find('input', attrs={'name': 'id', 'type': 'hidden'}):
+                id_number = form.find('input', attrs={'name': 'id', 'type': 'hidden'})['value']
+            if id_number and onr_number:
+                bilanz_data['onr'] = onr_number
+                bilanz_data['id'] = id_number
+                bilanz = cls.session_requests.post(url_bilanz, data=bilanz_data)
+                bilanz_soup = BeautifulSoup(bilanz.text, 'html.parser')
+                values.update(extract_values_from_bilanz(bilanz_soup))
+
+        return values
+
 
 url_login = "https://daten.compass.at/sso/login/process"  # URL to login to Compass
 url_search = "https://daten.compass.at/FirmenCompass"  # url to post requests for company search
 url_bilanz = "https://daten.compass.at/FirmenCompass/Bilanz"  # url to post requests for financial statements
 url_compass = "https://daten.compass.at"
-
-
-def run_crawling(file: str, encoding: str = 'utf-8', range: tuple = (0, 100)):
-    index_start, index_end = range
-
-    try:
-        df = pd.read_csv(filepath_or_buffer=file,
-                         encoding=encoding)
-    except (ValueError, UnicodeEncodeError):
-        return
-
-    df.rename(columns={'Company Name': 'name',
-                       'Address Line 1': 'address'},
-              inplace=True)
-
-    session_requests = requests.Session()
-    session_requests.post(url_login,
-                          data=login_data,
-                          headers=dict(referer=url_login))
-    progress_df = tqdm(iterable=df[index_start:index_end].iterrows(),
-                       total=abs(index_end - index_start),
-                       desc='::: Scraping companies :::')
-
-    for idx, row in progress_df:
-        http_return = find_company(company=row,
-                                   session=session_requests)
-        get_company_values(soup=http_return,
-                           session=session_requests)
 
 
 def find_company(company, session, byaddress=False):
