@@ -23,6 +23,8 @@ class Tables:
         self.update_tables()
 
     def update_tables(self):
+        # todo: update_tables() should be redundant, since we only need to append newly
+        # todo: scraped data and keep the format consistent
         for table_name in filter(lambda content: 'temp' in content, self.table_names):
             original_table = self.get(table_name=table_name.strip('temp'))
             temporary_table = self.get(table_name=table_name)
