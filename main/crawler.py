@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 from tqdm import tqdm
 from .settings import login_data, bilanz_data, search_data, TERMS_DICT, URL_DICT
+from main.sql_tools import Tables
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -18,6 +19,7 @@ class Crawler:
     collection_dict = None
 
     def __init__(self):
+        self.tables = Tables()
         self.session_requests = requests.Session()
         self.session_requests.post(URL_DICT['login'],
                                    data=login_data,
@@ -40,6 +42,9 @@ class Crawler:
         for idx, row in progress_df:
             self.process_company(company=row)
 
+        if self.collection_dict:
+            self.tables.upload_from_dict(collection_dict=self.collection_dict)
+
     def process_company(self, company):
         http_return = self._get_company_content(company=company)
         values = self._extract_company_values(soup=http_return)
@@ -50,7 +55,7 @@ class Crawler:
             else:
                 term_values = {key: value for key, value in values.items() if key in group_dict}
                 term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
-                                      in term_values.items() for info in value]
+                               in term_values.items() for info in value]
             if term_name in self.collection_dict and term_values:
                 self.collection_dict[term_name].extend(term_values)
             else:
