@@ -44,6 +44,7 @@ class Crawler:
 
         if self.collection_dict:
             self.tables.upload_from_dict(collection_dict=self.collection_dict)
+            self.tables.close_connection()
 
     def process_company(self, company):
         http_return = self._get_company_content(company=company)

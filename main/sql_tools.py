@@ -37,8 +37,6 @@ class Tables:
                         how='replace')
             self.db_cursor.execute('DROP TABLE ' + table_name)
 
-        self._close_connection()
-
     def get(self, table_name: str):
         return pd.read_sql(table_name,
                            self.connection,
@@ -66,7 +64,7 @@ class Tables:
 
         return df_sampled_sorted.set_index(multi_index) if multi_index else df_sampled_sorted
 
-    def _close_connection(self):
+    def close_connection(self):
         self.connection.commit()
         self.db_cursor.close()
         self.connection.close()
