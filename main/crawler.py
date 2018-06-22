@@ -13,10 +13,21 @@ from sqlalchemy import create_engine
 from tqdm import tqdm
 
 from main import logindata
-from .settings import ENGINE_ADRESS, OUTPUT_DIR, SQL_CONNECTION_STR, TERMS_DICT, URL_DICT, bilanz_data, login_data, \
-    search_data
+from .settings import (ENGINE_ADRESS, OUTPUT_DIR, SQL_CONNECTION_STR, TERMS_DICT,
+                       URL_DICT, bilanz_data, login_data, search_data)
 
 locale.setlocale(locale.LC_ALL, '')
+
+
+def timer(func):
+    def wrapper(*args, **kwargs):
+        timer_start = time.clock()
+        result = func(*args, **kwargs)
+        timer_end = time.clock()
+        print(f'{func.__name__} executed in {timer_end-timer_start}')
+        return result
+
+    return wrapper
 
 
 class Crawler:
@@ -698,14 +709,3 @@ class Tables:
         self.db_cursor.execute('Show Tables')
 
         return list(row[0] for row in self.db_cursor.fetchall())
-
-
-def timer(func):
-    def wrapper(*args, **kwargs):
-        timer_start = time.clock()
-        result = func(*args, **kwargs)
-        timer_end = time.clock()
-        print(f'{func.__name__} executed in {timer_end-timer_start}')
-        return result
-
-    return wrapper
