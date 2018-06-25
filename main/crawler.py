@@ -3,6 +3,7 @@ import os
 import pyodbc
 import re
 import time
+from sqlalchemy.exc import ProgrammingError
 
 import bs4
 import numpy as np
@@ -12,8 +13,7 @@ from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
 from tqdm import tqdm
 
-from main import logindata
-from .settings import (ENGINE_ADRESS, OUTPUT_DIR, SQL_CONNECTION_STR, TERMS_DICT,
+from .settings import (ENGINE_ADDRESS, OUTPUT_DIR, SQL_CONNECTION_STR, TERMS_DICT,
                        URL_DICT, bilanz_data, login_data, search_data)
 
 locale.setlocale(locale.LC_ALL, '')
@@ -56,7 +56,11 @@ class Crawler:
                            desc='::: Scraping companies :::')
 
         for idx, row in progress_df:
-            self.process_company(company=row)
+            try:
+                self.process_company(company=row)
+            except ValueError as e:
+                print(f'Skipping company {row["Company Name"]}: {e}')
+                continue
 
         if self.collection_dict:
             self.tables.upload_from_dict(collection_dict=self.collection_dict)
@@ -64,18 +68,27 @@ class Crawler:
 
     def process_company(self, company):
         http_return = self._get_company_content(company=company)
+
+        if not http_return:
+            raise ValueError('No data found')
+
         values = self._extract_company_values(soup=http_return)
 
         for term_name, group_dict in TERMS_DICT.items():
-            if term_name.startswith('Basic'):
+            if term_name.lower().startswith('basic'):
                 term_values = [{key: value for key, value in values.items() if key in group_dict}]
             else:
                 term_values = {key: value for key, value in values.items() if key in group_dict}
-                term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
-                               in term_values.items() for info in value]
+
+                if term_name.lower().startswith('recht'):
+                    term_values = [{'FN': values['FN'], 'type': key, 'number': key1, 'text': value1} for key, value
+                                   in term_values.items() for key1, value1 in value.items()]
+                else:
+                    term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
+                                   in term_values.items() for info in value]
             if term_name in self.collection_dict and term_values:
                 self.collection_dict[term_name].extend(term_values)
-            else:
+            elif term_values:
                 self.collection_dict[term_name] = term_values
 
     def _get_company_content(self, company, byaddress: bool = False):
@@ -595,81 +608,49 @@ class Crawler:
             values[title + '_' + 'infotext'] = infotext
         return values
 
-    def update_tables(self):  # downloads all SQL-Tables, concatenates every temp table with the permanent one, and
-        # deletes the
-        DB_NAME = "compassdata"
-        engine_address = ("mysql+pymysql://" + logindata.sql_config['user'] + ":" + logindata.sql_config['password'] +
-                          "@" + logindata.sql_config['host'] + "/" + DB_NAME + "?charset=utf8")
-        engine = create_engine(engine_address, encoding='utf-8')
-        con = engine.connect()
-
-        connStr = (
-                r'user=' + logindata.sql_config['user'] + r';' +
-                r'password=' + logindata.sql_config['password'] + r';' +
-                r'server=' + logindata.sql_config['host'] + r';' +
-                r'port=' + logindata.sql_config['port'] + r';' +
-                r'database=' + logindata.sql_config['database'] + ';' +
-                r'driver={Devart ODBC Driver for MySQL};'
-        )
-
-        cnxn = pyodbc.connect(connStr)  # set up a connection to the db
-        crsr = cnxn.cursor()  # and construct a cursor
-
-        crsr.execute("SHOW TABLES")
-        names = [row[0] for row in crsr.fetchall()]
-        temp_names = [name for name in names if name.endswith("Temp")]
-        perm_names = [name for name in names if name not in temp_names]
-        for table_name in perm_names:
-            if table_name + "Temp" in temp_names:
-                perm_table = pd.read_sql_table(table_name, con, index_col='index')
-                temp_table = pd.read_sql_table(table_name + "Temp", con, index_col='index')
-                new_table = pd.concat([perm_table, temp_table], ignore_index=True, sort=False)
-                new_table = new_table.drop_duplicates().reset_index(drop=True)
-                new_table.to_sql(name=table_name, con=con, if_exists='replace', chunksize=10000)
-                temp_names.remove(table_name + 'Temp')
-                crsr.execute("DROP TABLE " + table_name + "Temp")
-                print("Appended " + table_name + "Temp to " + table_name)
-        cnxn.commit()
-        for table_name in temp_names:
-            crsr.execute("RENAME TABLE " + table_name + " TO " + table_name[:-4])
-            print("Renamed " + table_name + " to " + table_name[:-4])
-        cnxn.commit()
-        crsr.close()
-        cnxn.close()
-        con.close()
-
 
 class Tables:
     def __init__(self):
-        self.connection = create_engine(ENGINE_ADRESS, encoding='utf-8').connect()
+        self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8')
+        self.connection.connect()
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
         self.db_cursor = self.sql_connection.cursor()
 
     @timer
     def upload_from_dict(self, collection_dict: dict, to_file: bool = False):
         for table_name, data in collection_dict.items():
-            self.commit(table_name=table_name + 'temp',
+            self.commit(table_name=table_name + 'Temp',
                         data=pd.DataFrame(data),
                         filename=table_name + '.csv' if to_file else None)
 
-        self.update_tables()
+        self.update_tables(data_dict=collection_dict)
 
-    def update_tables(self):
+    def update_tables(self, data_dict: dict):
         # todo: update_tables() should be redundant, since we only need to append newly
         # todo: scraped data and keep the format consistent
-        for table_name in filter(lambda content: 'temp' in content, self.table_names):
-            original_table = self.get(table_name=table_name.strip('temp'))
-            temporary_table = self.get(table_name=table_name)
+        for table_name in data_dict:
+            try:
+                temporary_table = self.get(table_name=table_name + 'Temp')
+            except ProgrammingError:
+                print(f'Could not find  any data for temp table {table_name + "Temp"}, skipping...')
+                continue
 
-            concat_tables = pd.concat([original_table, temporary_table],
-                                      ignore_index=True,
-                                      sort=False)
-            concat_tables.drop_duplicates(inplace=True)
+            try:
+                original_table = self.get(table_name=table_name)
+                concat_tables = pd.concat([original_table, temporary_table],
+                                          ignore_index=True,
+                                          sort=False)
+                concat_tables.drop_duplicates(inplace=True)
+                self.commit(table_name=table_name,
+                            data=concat_tables.reset_index(drop=True),
+                            how='replace')
+            except ProgrammingError:
+                print(f'Table {table_name} is not yet present on server, pushing temp data directly...')
+                self.commit(table_name=table_name,
+                            data=temporary_table.reset_index(drop=True),
+                            how='replace')
 
-            self.commit(table_name=table_name.strip('temp'),
-                        data=concat_tables.reset_index(drop=True),
-                        how='replace')
-            self.db_cursor.execute('DROP TABLE ' + table_name)
+            self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
         self.sql_connection.commit()
 
     def get(self, table_name: str):
@@ -681,7 +662,7 @@ class Tables:
                how: str = 'append',
                filename: str = None):
         data.to_sql(name=table_name,
-                    con=self.sql_connection,
+                    con=self.connection,
                     if_exists=how,
                     chunksize=10000)
 

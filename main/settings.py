@@ -14,7 +14,7 @@ TERMS_DICT = {
                   'Import', 'Export', 'Markennamen', 'geloescht', 'Gruendungsprivilegierung', 'Ringbeteiligung',
                   'Boersennotiert', 'Firmenwortlaut', 'Zusaetzliche.Angaben',
                   'Bankleitzahl(en)'],
-    'Abschluss': ['Jahresabschluss', 'Konzernabschluss'],
+    'GuVData': ['Jahresabschluss', 'Konzernabschluss'],
     'SearchData': ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute'],
     'NumericData': ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow'],
     'AdministrativeData': ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
@@ -59,15 +59,15 @@ search_data = {  # data needed to search for company
 }
 
 DB_NAME = "compassdata"
-ENGINE_ADRESS = ("mysql+pymysql://"
-                 + logindata.sql_config['user']
-                 + ":"
-                 + logindata.sql_config['password']
-                 + "@"
-                 + logindata.sql_config['host']
-                 + "/"
-                 + DB_NAME
-                 + "?charset=utf8")
+ENGINE_ADDRESS = ("mysql+pymysql://"
+                  + logindata.sql_config['user']
+                  + ":"
+                  + logindata.sql_config['password']
+                  + "@"
+                  + logindata.sql_config['host']
+                  + "/"
+                  + DB_NAME
+                  + "?charset=utf8")
 SQL_CONNECTION_STR = (
         r'user=' + logindata.sql_config['user'] + r';' +
         r'password=' + logindata.sql_config['password'] + r';' +
