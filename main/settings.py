@@ -14,7 +14,8 @@ TERMS_DICT = {
                   'Import', 'Export', 'Markennamen', 'geloescht', 'Gruendungsprivilegierung', 'Ringbeteiligung',
                   'Boersennotiert', 'Firmenwortlaut', 'Zusaetzliche.Angaben',
                   'Bankleitzahl(en)'],
-    'GuVData': ['Jahresabschluss', 'Konzernabschluss'],
+    'Abschluss': ['Jahresabschluss', 'Konzernabschluss'],
+    'GuVData':  'Gewinn',
     'SearchData': ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute'],
     'NumericData': ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow'],
     'AdministrativeData': ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',
@@ -22,7 +23,7 @@ TERMS_DICT = {
     'ContactData': ['Bankverbindung', 'Internet-Adressen', 'E-Mail', 'Gewerbedaten', 'Ediktsdatei'],
     'Niederlassungen': ['Niederlassungen'],
     'Rechtstatsachen': ['Rechtstatsachen'],
-    'BilanzData': ['Bilanz'],
+    'BilanzData': 'Bilanz',
     'EU_Agrarfoerderungen': ['EU-Agrarfoerderungen']
 }
 

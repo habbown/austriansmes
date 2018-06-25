@@ -74,22 +74,26 @@ class Crawler:
 
         values = self._extract_company_values(soup=http_return)
 
-        for term_name, group_dict in TERMS_DICT.items():
-            if term_name.lower().startswith('basic'):
-                term_values = [{key: value for key, value in values.items() if key in group_dict}]
+        for table_name, group_terms in TERMS_DICT.items():
+            if isinstance(group_terms, str):
+                term_values = [{'FN': values['FN'], 'name': key, 'value': value}
+                               for key, value in values.items() if key.startswith(group_terms)]
+            elif table_name.lower().startswith('basic'):
+                term_values = [{key: value for key, value in values.items() if key in group_terms}]
             else:
-                term_values = {key: value for key, value in values.items() if key in group_dict}
+                term_values = {key: value for key, value in values.items() if key in group_terms}
 
-                if term_name.lower().startswith('recht'):
+                if table_name.lower().startswith('recht'):
                     term_values = [{'FN': values['FN'], 'type': key, 'number': key1, 'text': value1} for key, value
                                    in term_values.items() for key1, value1 in value.items()]
                 else:
                     term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
                                    in term_values.items() for info in value]
-            if term_name in self.collection_dict and term_values:
-                self.collection_dict[term_name].extend(term_values)
+
+            if table_name in self.collection_dict and term_values:
+                self.collection_dict[table_name].extend(term_values)
             elif term_values:
-                self.collection_dict[term_name] = term_values
+                self.collection_dict[table_name] = term_values
 
     def _get_company_content(self, company, byaddress: bool = False):
         if not byaddress:
@@ -611,8 +615,7 @@ class Crawler:
 
 class Tables:
     def __init__(self):
-        self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8')
-        self.connection.connect()
+        self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
         self.db_cursor = self.sql_connection.cursor()
 
@@ -661,6 +664,8 @@ class Tables:
     def commit(self, table_name: str, data: pd.DataFrame,
                how: str = 'append',
                filename: str = None):
+        data = Tables.apply_table_format(table_name=table_name,
+                                         data=data)
         data.to_sql(name=table_name,
                     con=self.connection,
                     if_exists=how,
@@ -670,6 +675,30 @@ class Tables:
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, filename),
                         encoding='utf-8')
+
+    @staticmethod
+    def apply_table_format(table_name: str, data: pd.DataFrame):
+        if table_name.lower().startswith('bilanz'):
+            data = data.assign(date=None,
+                               position=None)
+            data.date = data.name.str.extract('([\d]{2}.[\d]{2}.[\d]{4})')
+            data.name = data.name.str.extract('[\d]{2}.[\d]{2}.[\d]{4}_(.*)')
+            # filter by aktiva/passiva indices
+            aktiva_index = data.name.str.contains('Aktiva')
+            passiva_index = data.name.str.contains('Passiva')
+            # set new position column entries by loc filter
+            data.loc[aktiva_index, 'position'] = 'Aktiva'
+            data.loc[passiva_index, 'position'] = 'Passiva'
+            data.dropna(subset={'position'})
+
+        elif table_name.lower().startswith('guv'):
+            data = data.assign(year=None)
+            data.year = data.name.str.extract('([\d{4}]+)')
+            data.name = data.name.str.extract('\d{4}_(.*)')
+            data.name = data.name.str.lstrip('_')
+            data.name = data.name.str.capitalize()
+
+        return data
 
     def sample(self, table_name: str, n_companies: int, sort_by: str, multi_index: list = None,
                n: int = 500):
