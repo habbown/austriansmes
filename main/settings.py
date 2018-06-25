@@ -1,7 +1,9 @@
 from main import logindata
 import os
 
-OUTPUT_DIR: str = os.path.join(os.path.dirname(os.getcwd()), 'output')
+from pathlib import Path
+
+OUTPUT_DIR: str = os.path.join(Path(os.path.dirname(__file__)).parent, 'output')
 
 DATA_HOOVERS_REVENUE_AT_LEAST_70M = os.path.join(os.getcwd(),
                                                  'data',
@@ -15,7 +17,7 @@ TERMS_DICT = {
                   'Boersennotiert', 'Firmenwortlaut', 'Zusaetzliche.Angaben',
                   'Bankleitzahl(en)'],
     'Abschluss': ['Jahresabschluss', 'Konzernabschluss'],
-    'GuVData':  'Gewinn',
+    'GuVData': 'Gewinn',
     'SearchData': ['Suchbegriff(e)', 'OENACE.2008', 'Historische.Adressen', 'Historische.Firmenwortlaute'],
     'NumericData': ['Beschaeftigte', 'EGT', 'Umsatz', 'Kapital', 'Cashflow'],
     'AdministrativeData': ['Eigentuemer', 'Management', 'Beteiligungen', 'Wirtschaftlicher.Eigentuemer',

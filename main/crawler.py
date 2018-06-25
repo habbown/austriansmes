@@ -35,12 +35,19 @@ class Crawler:
     collection_dict = None
 
     def __init__(self):
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+
         self.tables = Tables()
         self.session_requests = requests.Session()
         self.session_requests.post(URL_DICT['login'],
                                    data=login_data,
                                    headers=dict(referer=URL_DICT['login']))
         self.collection_dict = dict()
+        self.logging_df = pd.DataFrame(columns=['non_unique_name',
+                                                'non_unique_address',
+                                                'multiple_hits',
+                                                'no_hits',
+                                                'error'])
 
     def run_from_file(self, file: str, encoding: str = 'utf-8', rows: tuple = (0, 100)):
         index_start, index_end = rows
@@ -58,9 +65,14 @@ class Crawler:
         for idx, row in progress_df:
             try:
                 self.process_company(company=row)
-            except ValueError as e:
-                print(f'Skipping company {row["Company Name"]}: {e}')
-                continue
+            except (ValueError, AttributeError):
+                self.logging_df.at[row['Company Name'][0:38], 'error'] = True
+
+        if not self.logging_df.empty:
+            self.logging_df.to_csv(path_or_buf=os.path.join(OUTPUT_DIR,
+                                                            time.strftime("log_%Y%m%d_%H%M%S.csv")),
+                                   encoding='utf-8',
+                                   sep=';')
 
         if self.collection_dict:
             self.tables.upload_from_dict(collection_dict=self.collection_dict)
@@ -110,23 +122,24 @@ class Crawler:
         more_than_one_company = soup.find('h2', attrs={'id': 'result_summary'})
         no_company = soup.find('span', attrs={'id': 'result_summary'})
         too_many_companies = soup.find('div', attrs={'class': 'message warning'})
+
         if more_than_one_company or no_company or too_many_companies:
             if not byaddress:
-                print("No unique company by name")
+                self.logging_df.at[company['Company Name'][0:38], 'non_unique_name'] = True
                 soup = self._get_company_content(company, byaddress=True)
             else:
-                print("No unique company by address")
+                self.logging_df.at[company['Company Name'][0:38], 'non_unique_address'] = True
                 if more_than_one_company:
-                    print("More than one company")
+                    self.logging_df.at[company['Company Name'][0:38], 'multiple_hits'] = True
                     tag = soup.find('a', string=re.compile(re.escape(company['Company Name'][0:39].lower()), re.I))
                     if tag:
                         result_profil = self.session_requests.post(URL_DICT['compass'] + tag['href'])
                         soup = BeautifulSoup(result_profil.text, 'html.parser')
                     else:
-                        print("No company found")
+                        self.logging_df.at[company['Company Name'][0:38], 'no_hits'] = True
                         return False
                 else:
-                    print("No company found")
+                    self.logging_df.at[company['Company Name'][0:38], 'no_hits'] = True
                     return False
         return soup
 
@@ -619,11 +632,12 @@ class Tables:
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
         self.db_cursor = self.sql_connection.cursor()
 
-    @timer
     def upload_from_dict(self, collection_dict: dict, to_file: bool = False):
         for table_name, data in collection_dict.items():
+            data_formatted = Tables.apply_table_format(table_name=table_name,
+                                                       data=data)
             self.commit(table_name=table_name + 'Temp',
-                        data=pd.DataFrame(data),
+                        data=data_formatted,
                         filename=table_name + '.csv' if to_file else None)
 
         self.update_tables(data_dict=collection_dict)
@@ -650,8 +664,7 @@ class Tables:
             except ProgrammingError:
                 print(f'Table {table_name} is not yet present on server, pushing temp data directly...')
                 self.commit(table_name=table_name,
-                            data=temporary_table.reset_index(drop=True),
-                            how='replace')
+                            data=temporary_table.reset_index(drop=True))
 
             self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
         self.sql_connection.commit()
@@ -664,8 +677,6 @@ class Tables:
     def commit(self, table_name: str, data: pd.DataFrame,
                how: str = 'append',
                filename: str = None):
-        data = Tables.apply_table_format(table_name=table_name,
-                                         data=data)
         data.to_sql(name=table_name,
                     con=self.connection,
                     if_exists=how,
@@ -677,28 +688,36 @@ class Tables:
                         encoding='utf-8')
 
     @staticmethod
-    def apply_table_format(table_name: str, data: pd.DataFrame):
+    def apply_table_format(table_name: str, data: list):
+        df = pd.DataFrame(data)
+
         if table_name.lower().startswith('bilanz'):
-            data = data.assign(date=None,
-                               position=None)
-            data.date = data.name.str.extract('([\d]{2}.[\d]{2}.[\d]{4})')
-            data.name = data.name.str.extract('[\d]{2}.[\d]{2}.[\d]{4}_(.*)')
+            df = df.assign(date=None,
+                           position=None)
+            df.date = df.name.str.extract('([\d]{2}.[\d]{2}.[\d]{4})')
+            df.name = df.name.str.extract('[\d]{2}.[\d]{2}.[\d]{4}_(.*)')
+            df.name = df.name.str.lstrip('_')
             # filter by aktiva/passiva indices
-            aktiva_index = data.name.str.contains('Aktiva')
-            passiva_index = data.name.str.contains('Passiva')
+            aktiva_index = df.name.str.contains('Aktiva')
+            passiva_index = df.name.str.contains('Passiva')
             # set new position column entries by loc filter
-            data.loc[aktiva_index, 'position'] = 'Aktiva'
-            data.loc[passiva_index, 'position'] = 'Passiva'
-            data.dropna(subset={'position'})
+            df.loc[aktiva_index, 'position'] = 'Aktiva'
+            df.loc[aktiva_index, 'name'] = df.name.str.lstrip('Aktiva')
+            df.loc[passiva_index, 'position'] = 'Passiva'
+            df.loc[passiva_index, 'name'] = df.name.str.lstrip('Passiva')
+            df.name = df.name.str.lstrip('_')
+
+            df.dropna(subset={'position'},
+                      inplace=True)
 
         elif table_name.lower().startswith('guv'):
-            data = data.assign(year=None)
-            data.year = data.name.str.extract('([\d{4}]+)')
-            data.name = data.name.str.extract('\d{4}_(.*)')
-            data.name = data.name.str.lstrip('_')
-            data.name = data.name.str.capitalize()
+            df = df.assign(year=None)
+            df.year = df.name.str.extract('([\d{4}]+)')
+            df.name = df.name.str.extract('\d{4}_(.*)')
+            df.name = df.name.str.lstrip('_')
+            df.name = df.name.str.capitalize()
 
-        return data
+        return df
 
     def sample(self, table_name: str, n_companies: int, sort_by: str, multi_index: list = None,
                n: int = 500):
