@@ -12,3 +12,6 @@ pyodbc
 
 # progress bar
 tqdm
+
+# string metrics
+pyjarowinkler

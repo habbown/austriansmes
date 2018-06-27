@@ -5,6 +5,7 @@ import re
 import time
 from sqlalchemy.exc import ProgrammingError
 
+from pyjarowinkler import distance
 import bs4
 import numpy as np
 import pandas as pd
@@ -37,7 +38,6 @@ class Crawler:
     def __init__(self):
         os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-        self.tables = Tables()
         self.session_requests = requests.Session()
         self.session_requests.post(URL_DICT['login'],
                                    data=login_data,
@@ -65,7 +65,9 @@ class Crawler:
         for idx, row in progress_df:
             try:
                 self.process_company(company=row)
-            except (ValueError, AttributeError):
+            except ValueError:
+                continue
+            except AttributeError:
                 self.logging_df.at[row['Company Name'][0:38], 'error'] = True
 
         if not self.logging_df.empty:
@@ -75,8 +77,9 @@ class Crawler:
                                    sep=';')
 
         if self.collection_dict:
-            self.tables.upload_from_dict(collection_dict=self.collection_dict)
-            self.tables.close_connection()
+            table = DBTable()
+            table.upload_from_dict(collection_dict=self.collection_dict)
+            table.close_connection()
 
     def process_company(self, company):
         http_return = self._get_company_content(company=company)
@@ -626,7 +629,33 @@ class Crawler:
         return values
 
 
-class Tables:
+class DBColumn:
+    @staticmethod
+    def get_distance(first: str, second: str, metric: str):
+        if metric == '':
+            return distance.get_jaro_distance(first=first,
+                                              second=second)
+        elif metric == '':
+            return
+        elif metric == '':
+            return
+
+    # def group_table_columns(self, table_name: str, col: str, metric: str = 'jaro'):
+    #     df = self.get(table_name=table_name)
+    #     # collect unique terms for string comparison
+    #     unique_terms = df[col].str.lower().unique()
+    #     term_dict = dict()
+    #
+    #     for term in tqdm(iterable=unique_terms):
+    #         term_dict[term] = list()
+    #         for sub_term in unique_terms:
+    #             if sub_term != term:
+    #                 term_dict[term].append((sub_term, DBTable.get_distance(first=term,
+    #                                                                        second=sub_term,
+    #                                                                        metric=metric)))
+
+
+class DBTable(DBColumn):
     def __init__(self):
         self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
@@ -634,8 +663,8 @@ class Tables:
 
     def upload_from_dict(self, collection_dict: dict, to_file: bool = False):
         for table_name, data in collection_dict.items():
-            data_formatted = Tables.apply_table_format(table_name=table_name,
-                                                       data=data)
+            data_formatted = DBTable.apply_table_format(table_name=table_name,
+                                                        data=data)
             self.commit(table_name=table_name + 'Temp',
                         data=data_formatted,
                         filename=table_name + '.csv' if to_file else None)
@@ -654,19 +683,37 @@ class Tables:
 
             try:
                 original_table = self.get(table_name=table_name)
-                concat_tables = pd.concat([original_table, temporary_table],
-                                          ignore_index=True,
-                                          sort=False)
-                concat_tables.drop_duplicates(inplace=True)
-                self.commit(table_name=table_name,
-                            data=concat_tables.reset_index(drop=True),
-                            how='replace')
             except ProgrammingError:
                 print(f'Table {table_name} is not yet present on server, pushing temp data directly...')
                 self.commit(table_name=table_name,
                             data=temporary_table.reset_index(drop=True))
+                self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
+                continue
 
-            self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
+            # server_columns = self.get_column_names(table_name=table_name)
+            # missing_server_columns = set(temporary_table.columns) - set(server_columns)
+            #
+            # if missing_server_columns:
+            #     for column in missing_server_columns:
+            #         self.db_cursor.execute(f'''alter table {table_name} add column {column} VARCHAR(250)''')
+
+            try:
+                concat_table = pd.concat(objs=[original_table,
+                                               temporary_table],
+                                         ignore_index=True,
+                                         sort=False)
+                concat_table.drop_duplicates(inplace=True)
+                concat_table.reset_index(inplace=True,
+                                         drop=True)
+
+                self.commit(table_name=table_name,
+                            data=concat_table,
+                            how='replace')
+                self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
+            except ProgrammingError:
+                print(f'Table {table_name} upload caused SQL error, skipping...')
+                continue
+
         self.sql_connection.commit()
 
     def get(self, table_name: str):
@@ -738,3 +785,8 @@ class Tables:
         self.db_cursor.execute('Show Tables')
 
         return list(row[0] for row in self.db_cursor.fetchall())
+
+    def get_column_names(self, table_name: str):
+        sql_string = f"SELECT column_name FROM information_schema.columns WHERE table_name='{table_name}'"
+
+        return list(i[0] for i in self.db_cursor.execute(sql_string) if not i[0] == 'index')
