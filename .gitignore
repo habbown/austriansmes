@@ -8,3 +8,4 @@ run_crawling.py
 /.idea
 
 *.pyc
+*.ipynb
