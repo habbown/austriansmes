@@ -13,5 +13,6 @@ pyodbc
 # progress bar
 tqdm
 
-# string metrics
+# nlp
 pyjarowinkler
+nltk

@@ -1,2 +1,10 @@
 main/logindata.py
 logindata.py
+run_crawling.py
+
+/data/*
+/notebooks/*
+/output
+/.idea
+
+*.pyc
