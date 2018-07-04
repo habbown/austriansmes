@@ -4,64 +4,69 @@ from nltk.stem.snowball import GermanStemmer
 from tqdm import tqdm
 
 
-class TextClean:
+class StringHandler:
     _STEMMER = GermanStemmer()
 
-    def __init__(self, words: pd.Series, optimize: bool = True):
-        self.words = words
-
-        if optimize:
-            self.words = self.optimize()
+    def __init__(self, string_series: pd.Series):
+        self.ds = string_series.str.lower()
+        self.ds_origin = self.ds.copy()
 
     def optimize(self):
-        """Runs a series of cleaning, stemming, and optimizing processes"""
-        ds_cleaned = TextClean.remove_noise(series=self.words)
-        ds_split = TextClean.split_text(series=ds_cleaned)
-        ds_reconstructed = TextClean.reconstruct_sentence(series=ds_split)
+        self.remove_noise()
+        self.split_text()
+        self.build_sentence()
+        self.stem_words()
+        # self.correct_spelling()
 
-        return TextClean.remove_stopwords(series=ds_reconstructed)
-
-    # nlp manipulation
-    ##################################
-
-    @staticmethod
-    def spell_correction(series: pd.Series):
-        return
-
-    @classmethod
-    def stem_text(cls, series: pd.Series):
-        return series.apply(lambda x: ' '.join(cls._STEMMER.steam(i) for i in x.split(' ')))
+    def recover(self):
+        self.ds = self.ds_origin.copy()
 
     # string manipulation
     ##################################
 
-    @staticmethod
-    def split_text(series: pd.Series):
-        return series.str.split(' ')
+    def stem_words(self):
+        self.ds = self.ds.apply(StringHandler.stem_sentence)
 
-    @staticmethod
-    def remove_noise(series: pd.Series):
-        return series.str.replace(r'[^a-zA-Z0-9]', ' ')
+    def split_text(self):
+        self.ds = self.ds.str.split(' ')
 
-    @staticmethod
-    def reconstruct_sentence(series: pd.Series):
-        return series.apply(lambda x: ' '.join(word.strip() for word in x if word))
+    def remove_noise(self):
+        self.ds = self.ds.str.replace(r'[^a-zA-Z0-9]', ' ')
+        # remove leftover isolated substrings that are not words/digits
 
-    @staticmethod
-    def remove_stopwords(series: pd.Series):
-        return series
+    def build_sentence(self):
+        self.ds = self.ds.apply(lambda x: ' '.join(word.strip() for word in x if word))
+
+    # nlp manipulation
+    ##################################
+
+    def correct_spelling(self):
+        self.ds = None
+
+    @classmethod
+    def stem_sentence(cls, sentence: str, split_char: str = ' '):
+        return ' '.join(cls._STEMMER.stem(word) for word in sentence.split(split_char))
+
+    @property
+    def get_unique_series(self):
+        return pd.Series(self.ds.unique).sort_values().reset_index(drop=True)
 
 
-class TextCluster(TextClean):
-    def group_words(self):
-        unique_terms = self.words.str.lower().unique()
+class TextCluster(StringHandler):
+    def __init__(self, words: pd.Series, optimize: bool = True):
+        super().__init__(string_series=words)
+
+        if optimize:
+            self.optimize()
+
+    def cluster(self, by_column: str):
         term_dict = dict()
 
-        for term in tqdm(iterable=unique_terms,
+        for term in tqdm(iterable=self.get_unique_series,
                          desc=f'Grouping series ::: '):
             term_dict[term] = set()
 
-            for sub_term in unique_terms:
+            for sub_term in self.get_unique_series:
                 if sub_term != term:
                     term_dict[term].update(sub_term)
 

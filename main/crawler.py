@@ -5,7 +5,6 @@ import re
 import time
 from sqlalchemy.exc import ProgrammingError
 
-from pyjarowinkler import distance
 import bs4
 import numpy as np
 import pandas as pd
@@ -629,33 +628,7 @@ class Crawler:
         return values
 
 
-class DBColumn:
-    @staticmethod
-    def get_distance(first: str, second: str, metric: str):
-        if metric == '':
-            return distance.get_jaro_distance(first=first,
-                                              second=second)
-        elif metric == '':
-            return
-        elif metric == '':
-            return
-
-    # def group_table_columns(self, table_name: str, col: str, metric: str = 'jaro'):
-    #     df = self.get(table_name=table_name)
-    #     # collect unique terms for string comparison
-    #     unique_terms = df[col].str.lower().unique()
-    #     term_dict = dict()
-    #
-    #     for term in tqdm(iterable=unique_terms):
-    #         term_dict[term] = list()
-    #         for sub_term in unique_terms:
-    #             if sub_term != term:
-    #                 term_dict[term].append((sub_term, DBTable.get_distance(first=term,
-    #                                                                        second=sub_term,
-    #                                                                        metric=metric)))
-
-
-class DBTable(DBColumn):
+class DBTable:
     def __init__(self):
         self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
@@ -672,13 +645,11 @@ class DBTable(DBColumn):
         self.update_tables(data_dict=collection_dict)
 
     def update_tables(self, data_dict: dict):
-        # todo: update_tables() should be redundant, since we only need to append newly
-        # todo: scraped data and keep the format consistent
         for table_name in data_dict:
             try:
                 temporary_table = self.get(table_name=table_name + 'Temp')
             except ProgrammingError:
-                print(f'Could not find  any data for temp table {table_name + "Temp"}, skipping...')
+                print(f'Could not find any data for temp table {table_name + "Temp"}, skipping...')
                 continue
 
             try:
@@ -689,13 +660,6 @@ class DBTable(DBColumn):
                             data=temporary_table.reset_index(drop=True))
                 self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
                 continue
-
-            # server_columns = self.get_column_names(table_name=table_name)
-            # missing_server_columns = set(temporary_table.columns) - set(server_columns)
-            #
-            # if missing_server_columns:
-            #     for column in missing_server_columns:
-            #         self.db_cursor.execute(f'''alter table {table_name} add column {column} VARCHAR(250)''')
 
             try:
                 concat_table = pd.concat(objs=[original_table,
@@ -717,9 +681,7 @@ class DBTable(DBColumn):
         self.sql_connection.commit()
 
     def get(self, table_name: str):
-        return pd.read_sql(table_name,
-                           self.connection,
-                           index_col='index')
+        return pd.read_sql(table_name, self.connection)
 
     def commit(self, table_name: str, data: pd.DataFrame,
                how: str = 'append',
@@ -727,6 +689,7 @@ class DBTable(DBColumn):
         data.to_sql(name=table_name,
                     con=self.connection,
                     if_exists=how,
+                    index=False,
                     chunksize=10000)
 
         if filename:
