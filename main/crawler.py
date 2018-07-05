@@ -96,12 +96,7 @@ class Crawler:
                 term_values = [{key: value for key, value in values.items() if key in group_terms}]
             else:
                 term_values = {key: value for key, value in values.items() if key in group_terms}
-
-                if table_name.lower().startswith('recht'):
-                    term_values = [{'FN': values['FN'], 'type': key, 'number': key1, 'text': value1} for key, value
-                                   in term_values.items() for key1, value1 in value.items()]
-                else:
-                    term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
+                term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
                                    in term_values.items() for info in value]
 
             if table_name in self.collection_dict and term_values:
@@ -126,23 +121,23 @@ class Crawler:
         too_many_companies = soup.find('div', attrs={'class': 'message warning'})
 
         if more_than_one_company or no_company or too_many_companies:
-            if not byaddress:
+            if byaddress:
+                self.logging_df.at[company['Company Name'][0:38], 'non_unique_address'] = True
+            else:
                 self.logging_df.at[company['Company Name'][0:38], 'non_unique_name'] = True
+
+            if more_than_one_company:
+                self.logging_df.at[company['Company Name'][0:38], 'multiple_hits']
+                tag = soup.find('a', string=re.compile(re.escape(company['Company Name'].lower()), re.I))
+                if tag:
+                    result_profil = self.session_requests.post(URL_DICT['compass'] + tag['href'])
+                    soup = BeautifulSoup(result_profil.text, 'html.parser')
+                    return soup
+
+            if not byaddress:
                 soup = self._get_company_content(company, byaddress=True)
             else:
-                self.logging_df.at[company['Company Name'][0:38], 'non_unique_address'] = True
-                if more_than_one_company:
-                    self.logging_df.at[company['Company Name'][0:38], 'multiple_hits'] = True
-                    tag = soup.find('a', string=re.compile(re.escape(company['Company Name'][0:39].lower()), re.I))
-                    if tag:
-                        result_profil = self.session_requests.post(URL_DICT['compass'] + tag['href'])
-                        soup = BeautifulSoup(result_profil.text, 'html.parser')
-                    else:
-                        self.logging_df.at[company['Company Name'][0:38], 'no_hits'] = True
-                        return False
-                else:
-                    self.logging_df.at[company['Company Name'][0:38], 'no_hits'] = True
-                    return False
+                return False
         return soup
 
     def _extract_company_values(self, soup):
@@ -308,9 +303,9 @@ class Crawler:
                         variablevalue.append(info)
             elif variablename in {'Rechtstatsachen'}:
                 variablevalue_children = variablevalue.find_all('p')
-                variablevalue = {}
+                variablevalue = []
                 for child in variablevalue_children:
-                    variablevalue[child.b.string] = list(child.stripped_strings)[1]
+                    variablevalue.append({'number':child.b.string, 'text': list(child.stripped_strings)[1]})
             elif variablename in {'Firmeninformationen'}:
                 value = []
                 for item in variablevalue.find_all('li'):
