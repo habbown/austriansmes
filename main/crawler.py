@@ -97,7 +97,7 @@ class Crawler:
             else:
                 term_values = {key: value for key, value in values.items() if key in group_terms}
                 term_values = [dict(info, **{'FN': values['FN'], 'type': key}) for key, value
-                                   in term_values.items() for info in value]
+                               in term_values.items() for info in value]
 
             if table_name in self.collection_dict and term_values:
                 self.collection_dict[table_name].extend(term_values)
@@ -305,7 +305,7 @@ class Crawler:
                 variablevalue_children = variablevalue.find_all('p')
                 variablevalue = []
                 for child in variablevalue_children:
-                    variablevalue.append({'number':child.b.string, 'text': list(child.stripped_strings)[1]})
+                    variablevalue.append({'number': child.b.string, 'text': list(child.stripped_strings)[1]})
             elif variablename in {'Firmeninformationen'}:
                 value = []
                 for item in variablevalue.find_all('li'):
@@ -625,9 +625,7 @@ class Crawler:
 
 class DBTable:
     def __init__(self):
-        self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
-        self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
-        self.db_cursor = self.sql_connection.cursor()
+        self.open_connection()
 
     def upload_from_dict(self, collection_dict: dict, to_file: bool = False):
         for table_name, data in collection_dict.items():
@@ -749,6 +747,11 @@ class DBTable:
         self.db_cursor.close()
         self.sql_connection.close()
         self.connection.close()
+
+    def open_connection(self):
+        self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
+        self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
+        self.db_cursor = self.sql_connection.cursor()
 
     @property
     def table_names(self):
