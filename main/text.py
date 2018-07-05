@@ -9,8 +9,8 @@ class StringHandler:
     _P_SIMILARITY_THRESHOLD: float = 0.9
 
     def __init__(self, string_series: pd.Series):
-        self.ds = string_series.str.lower()
-        self.ds_origin = self.ds.copy()
+        self._ds = string_series.str.lower()
+        self.ds_origin = string_series
 
     def optimize(self):
         self.remove_noise()
@@ -19,7 +19,7 @@ class StringHandler:
         self.stem_words()
         # self.correct_spelling()
 
-    def recover(self):
+    def reset(self):
         self.ds = self.ds_origin.copy()
 
     # string manipulation
@@ -55,6 +55,17 @@ class StringHandler:
     @property
     def get_unique_series(self):
         return pd.Series(self.ds.unique).sort_values().reset_index(drop=True)
+
+    @property
+    def ds(self):
+        return self._ds
+
+    @ds.setter
+    def ds(self, ds: pd.Series):
+        if isinstance(ds, pd.Series) and not ds.empty:
+            self._ds = ds
+        else:
+            raise TypeError('Wrong variable type or empty series')
 
 
 class TextCluster(StringHandler):
