@@ -42,7 +42,7 @@ class StringHandler:
     ##################################
 
     def correct_spelling(self):
-        uniques = pd.Series(self.ds.unique())
+        uniques = self.get_unique_series
         uniques.apply(lambda x: list(i for i in uniques if i != x and SequenceMatcher(None, x, i).ratio() > 0.9))
 
     @classmethod
@@ -54,7 +54,7 @@ class StringHandler:
 
     @property
     def get_unique_series(self):
-        return pd.Series(self.ds.unique).sort_values().reset_index(drop=True)
+        return pd.Series(self.ds.unique()).sort_values().reset_index(drop=True)
 
     @property
     def ds(self):

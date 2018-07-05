@@ -77,7 +77,7 @@ class Crawler:
 
         if self.collection_dict:
             table = DBTable()
-            table.upload_from_dict(collection_dict=self.collection_dict)
+            table.push_from_source(source=self.collection_dict)
             table.close_connection()
 
     def process_company(self, company):
@@ -627,17 +627,34 @@ class DBTable:
     def __init__(self):
         self.open_connection()
 
-    def upload_from_dict(self, collection_dict: dict, to_file: bool = False):
-        for table_name, data in collection_dict.items():
-            data_formatted = DBTable.apply_table_format(table_name=table_name,
-                                                        data=data)
+    def push_from_source(self, source: dict, to_file: bool = False):
+        for table_name, data in source.items():
+            data_formatted = self.get_formatted(table_name=table_name,
+                                                data=data)
             self.commit(table_name=table_name + 'Temp',
                         data=data_formatted,
                         filename=table_name + '.csv' if to_file else None)
 
-        self.update_tables(data_dict=collection_dict)
+        self.update_source_tables(data_dict=source)
 
-    def update_tables(self, data_dict: dict):
+        if 'BilanzData' in source:
+            self.update_relational_tables()
+
+    def update_relational_tables(self):
+        df_guv_compact = self.get(table_name='GuVData')[['FN', 'year']].drop_duplicates()
+        df_bilanz_compact = self.get(table_name='BilanzData')[['FN', 'date']].drop_duplicates()
+        df_bilanz_compact['year'] = df_bilanz_compact.date.str[-4:]
+
+        df_bilanz_info = df_bilanz_compact[['FN', 'year']].merge(df_guv_compact,
+                                                                 how='outer',
+                                                                 indicator=True)
+        df_bilanz_info = df_bilanz_info.assign(shortened=False)
+        df_bilanz_info.loc[df_bilanz_info._merge == 'left_only', 'shortened'] = True
+
+        self.commit(table_name='BilanzInfo',
+                    data=df_bilanz_info[['FN', 'year', 'shortened']])
+
+    def update_source_tables(self, data_dict: dict):
         for table_name in data_dict:
             try:
                 temporary_table = self.get(table_name=table_name + 'Temp')
@@ -691,7 +708,7 @@ class DBTable:
                         encoding='utf-8')
 
     @staticmethod
-    def apply_table_format(table_name: str, data: list):
+    def get_formatted(table_name: str, data: list):
         df = pd.DataFrame(data)
 
         if table_name.lower().startswith('bilanz'):
