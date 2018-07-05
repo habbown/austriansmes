@@ -722,6 +722,18 @@ class DBTable:
             df.name = df.name.str.lstrip('_')
             df.name = df.name.str.capitalize()
 
+        elif table_name.lower().startswith('search'):
+            df = df.assign(code=None)
+
+            if df.type.str.contains('OENACE.2008').any():
+                oenace_index = df.type == 'OENACE.2008'
+                split_content = df.loc[oenace_index, 'value'].str.split('(')
+                codes = split_content.apply(lambda x: x[-1]).str.rstrip(')')
+                values = split_content.apply(lambda x: '('.join(part for part in x[:-1]))
+
+                df.loc[oenace_index, 'code'] = codes
+                df.loc[oenace_index, 'value'] = values
+
         return df
 
     def sample(self, table_name: str, n_companies: int, sort_by: str, multi_index: list = None,

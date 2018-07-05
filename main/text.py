@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 class StringHandler:
     _STEMMER = GermanStemmer()
+    _P_SIMILARITY_THRESHOLD: float = 0.9
 
     def __init__(self, string_series: pd.Series):
         self.ds = string_series.str.lower()
@@ -41,11 +42,15 @@ class StringHandler:
     ##################################
 
     def correct_spelling(self):
-        self.ds = None
+        uniques = pd.Series(self.ds.unique())
+        uniques.apply(lambda x: list(i for i in uniques if i != x and SequenceMatcher(None, x, i).ratio() > 0.9))
 
     @classmethod
     def stem_sentence(cls, sentence: str, split_char: str = ' '):
         return ' '.join(cls._STEMMER.stem(word) for word in sentence.split(split_char))
+
+    # properties
+    ##################################
 
     @property
     def get_unique_series(self):
