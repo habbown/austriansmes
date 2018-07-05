@@ -1,6 +1,6 @@
 from main.crawler import Crawler
-from main.settings import DATA_HOOVERS_REVENUE_AT_LEAST_70M
+from main.settings import DATA_TOP_2000
 
 crawler = Crawler()
-crawler.run_from_file(file=DATA_HOOVERS_REVENUE_AT_LEAST_70M,
-                      rows=(411, 600))
+crawler.run_from_file(file=DATA_TOP_2000,
+                      rows=(0, 500))
