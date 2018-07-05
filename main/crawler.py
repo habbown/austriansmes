@@ -70,6 +70,7 @@ class Crawler:
             try:
                 self.process_company(company=row)
             except ValueError:
+                self.logging_df.at[row['Company Name'][0:38], 'no_hits'] = True
                 continue
             except AttributeError:
                 self.logging_df.at[row['Company Name'][0:38], 'error'] = True
