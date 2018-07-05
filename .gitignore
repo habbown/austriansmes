@@ -10,3 +10,4 @@ run_crawling.py
 *.pyc
 *.ipynb
 *.txt
+*.csv

@@ -51,11 +51,16 @@ class Crawler:
     def run_from_file(self, file: str, encoding: str = 'utf-8', rows: tuple = (0, 100)):
         index_start, index_end = rows
 
-        try:
-            df = pd.read_csv(filepath_or_buffer=file,
-                             encoding=encoding)
-        except (ValueError, UnicodeEncodeError):
-            return
+        if file.lower().endswith('csv'):
+            try:
+                df = pd.read_csv(filepath_or_buffer=file,
+                                 encoding=encoding)
+            except (ValueError, UnicodeEncodeError):
+                return
+        elif file.lower().endswith(('xls', 'xlsx')):
+            df = pd.read_excel(io=file)
+        else:
+            raise TypeError('Filetype not supported')
 
         progress_df = tqdm(iterable=df[index_start:index_end].iterrows(),
                            total=abs(index_end - index_start),
@@ -127,7 +132,7 @@ class Crawler:
                 self.logging_df.at[company['Company Name'][0:38], 'non_unique_name'] = True
 
             if more_than_one_company:
-                self.logging_df.at[company['Company Name'][0:38], 'multiple_hits']
+                self.logging_df.at[company['Company Name'][0:38], 'multiple_hits'] = True
                 tag = soup.find('a', string=re.compile(re.escape(company['Company Name'].lower()), re.I))
                 if tag:
                     result_profil = self.session_requests.post(URL_DICT['compass'] + tag['href'])
@@ -634,13 +639,16 @@ class DBTable:
             self.commit(table_name=table_name + 'Temp',
                         data=data_formatted,
                         filename=table_name + '.csv' if to_file else None)
-
+        print('Pushing data to server...\n')
         self.update_source_tables(data_dict=source)
 
         if 'BilanzData' in source:
             self.update_relational_tables()
 
+        print('...Done')
+
     def update_relational_tables(self):
+        print('Updating relational tables...\n')
         df_guv_compact = self.get(table_name='GuVData')[['FN', 'year']].drop_duplicates()
         df_bilanz_compact = self.get(table_name='BilanzData')[['FN', 'date']].drop_duplicates()
         df_bilanz_compact['year'] = df_bilanz_compact.date.str[-4:]
@@ -731,11 +739,22 @@ class DBTable:
                       inplace=True)
 
         elif table_name.lower().startswith('guv'):
-            df = df.assign(year=None)
+            df = df.assign(year=None,
+                           is_revenue=False)
             df.year = df.name.str.extract('([\d{4}]+)')
             df.name = df.name.str.extract('\d{4}_(.*)')
             df.name = df.name.str.lstrip('_')
             df.name = df.name.str.capitalize()
+
+            for k, group in df.groupby(by=['FN', 'year']):
+                revenue_hits = group.name.str.lower().str.contains('umsatz')
+
+                if revenue_hits.any():
+                    revenue_index = group[revenue_hits].iloc[0].name
+                else:
+                    revenue_index = group.value.iloc[:25].idxmax()
+
+                df.at[revenue_index, 'is_revenue'] = True
 
         elif table_name.lower().startswith('search'):
             df = df.assign(code=None)

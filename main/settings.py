@@ -8,6 +8,9 @@ OUTPUT_DIR: str = os.path.join(Path(os.path.dirname(__file__)).parent, 'output')
 DATA_HOOVERS_REVENUE_AT_LEAST_70M = os.path.join(os.getcwd(),
                                                  'data',
                                                  'dnbhoovers_revenueatleast70m.csv')
+DATA_TOP_2000 = os.path.join(os.getcwd(),
+                             'data',
+                             'AT2000_inkl_Adressen.xls')
 TERMS_DICT = {
     'BasicData': ['FN', 'Firmenname', 'Compass-ID(ONR)', 'Firmenwortlaut', 'Adresse', 'DVR-Nummer', 'Gruendungsjahr',
                   'Ersteintragung', 'Fax', 'Geschaeftszweig.lt..Firmenbuch', 'Gericht', 'Gruendungsjahr',
