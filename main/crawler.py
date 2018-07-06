@@ -692,8 +692,7 @@ class DBTable:
 
     def get(self, table_name: str):
         return pd.read_sql(table_name,
-                           self.connection,
-                           chunksize=5000)
+                           self.connection)
 
     def commit(self, table_name: str, data: pd.DataFrame,
                how: str = 'append'):
