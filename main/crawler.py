@@ -637,14 +637,18 @@ class DBTable:
         self.open_connection()
 
     def push_from_source(self, source: dict, to_file: bool = False):
+        print('Pushing data to server...\n')
+
         for table_name, data in source.items():
             data_formatted = self.get_formatted(table_name=table_name,
                                                 data=data)
-            self.commit(table_name=table_name + 'Temp',
-                        data=data_formatted,
-                        filename=table_name + '.csv' if to_file else None)
-        print('Pushing data to server...\n')
-        self.update_source_tables(data_dict=source)
+            self.update_database(table_name=table_name,
+                                 df_new=data_formatted)
+
+            if to_file:
+                os.makedirs(OUTPUT_DIR, exist_ok=True)
+                data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, table_name + '.csv'),
+                            encoding='utf-8')
 
         if 'BilanzData' in source:
             self.update_relational_tables()
@@ -666,58 +670,38 @@ class DBTable:
         self.commit(table_name='BilanzInfo',
                     data=df_bilanz_info[['FN', 'year', 'shortened']])
 
-    def update_source_tables(self, data_dict: dict):
-        for table_name in data_dict:
-            try:
-                temporary_table = self.get(table_name=table_name + 'Temp')
-            except ProgrammingError:
-                print(f'Could not find any data for temp table {table_name + "Temp"}, skipping...')
-                continue
+    def update_database(self, table_name: str, df_new: pd.DataFrame):
+        try:
+            original_table = self.get(table_name=table_name)
+        except ProgrammingError:
+            print(f'Table {table_name} is not yet present on server, pushing temp data directly...')
+            self.commit(table_name=table_name, data=df_new)
+            return
 
-            try:
-                original_table = self.get(table_name=table_name)
-            except ProgrammingError:
-                print(f'Table {table_name} is not yet present on server, pushing temp data directly...')
-                self.commit(table_name=table_name,
-                            data=temporary_table.reset_index(drop=True))
-                self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
-                continue
+        concat_table = pd.concat(objs=[original_table, df_new],
+                                 ignore_index=True,
+                                 sort=False)
+        concat_table.drop_duplicates(inplace=True)
+        concat_table.reset_index(inplace=True,
+                                 drop=True)
 
-            try:
-                concat_table = pd.concat(objs=[original_table,
-                                               temporary_table],
-                                         ignore_index=True,
-                                         sort=False)
-                concat_table.drop_duplicates(inplace=True)
-                concat_table.reset_index(inplace=True,
-                                         drop=True)
-
-                self.commit(table_name=table_name,
-                            data=concat_table,
-                            how='replace')
-                self.db_cursor.execute('DROP TABLE ' + table_name + 'Temp')
-            except ProgrammingError:
-                print(f'Table {table_name} upload caused SQL error, skipping...')
-                continue
-
+        self.commit(table_name=table_name,
+                    data=concat_table,
+                    how='replace')
         self.sql_connection.commit()
 
     def get(self, table_name: str):
-        return pd.read_sql(table_name, self.connection)
+        return pd.read_sql(table_name,
+                           self.connection,
+                           chunksize=5000)
 
     def commit(self, table_name: str, data: pd.DataFrame,
-               how: str = 'append',
-               filename: str = None):
+               how: str = 'append'):
         data.to_sql(name=table_name,
                     con=self.connection,
                     if_exists=how,
                     index=False,
-                    chunksize=10000)
-
-        if filename:
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
-            data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, filename),
-                        encoding='utf-8')
+                    chunksize=5000)
 
     @staticmethod
     def get_formatted(table_name: str, data: list):
