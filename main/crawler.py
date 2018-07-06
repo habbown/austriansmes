@@ -458,7 +458,7 @@ class Crawler:
                     info = {}
                     info['FN'] = fn
                     info['name'] = variablename
-                    find_year = re.compile('[0-9/]*')
+                    find_year = re.compile('^[0-9/]+')
                     year_re = find_year.match(content)
                     if year_re:
                         year = year_re.group()
@@ -467,7 +467,10 @@ class Crawler:
                     index_of_colon = content.find(':')
                     if index_of_colon not in [-1, 0]:
                         comment1 = content[:index_of_colon]
-                        info['comment1'] = comment1
+                        info['comment1'] = comment1.strip('() ')
+                        content = content[index_of_colon + 1:]
+                    elif index_of_colon == 0:
+                        content = content.strip(':')
                     content = content.replace(re.compile(':? *').match(content).group(), '')
                     value_re = re.compile('-?[\d,.]+|keine').match(content)
                     if value_re:
@@ -484,7 +487,7 @@ class Crawler:
                     if currency_re:
                         currency = currency_re.group()
                         info['currency'] = currency
-                        info['unit'] = content[:currency_re.start()]
+                        info['unit'] = content[:currency_re.start()].strip()
                         if content[currency_re.end():].strip()[1:-1] != '':
                             info['comment2'] = content[currency_re.end():].strip()[1:-1]
                     variablevalue.append(info)
