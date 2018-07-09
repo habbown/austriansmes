@@ -48,7 +48,7 @@ class Crawler:
                                                 'no_hits',
                                                 'error'])
 
-    def run_from_file(self, file: str, encoding: str = 'utf-8', rows: tuple = (0, 100)):
+    def get_content(self, file: str, encoding: str = 'utf-8', rows: tuple = (0, 100)):
         index_start, index_end = rows
 
         if file.lower().endswith('csv'):
@@ -81,10 +81,7 @@ class Crawler:
                                    encoding='utf-8',
                                    sep=';')
 
-        if self.collection_dict:
-            table = DBTable()
-            table.push_from_source(source=self.collection_dict)
-            table.close_connection()
+        return self.collection_dict
 
     def process_company(self, company):
         http_return = self._get_company_content(company=company)
