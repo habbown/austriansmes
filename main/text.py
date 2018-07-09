@@ -95,3 +95,63 @@ class TextCluster(StringHandler):
     @staticmethod
     def get_similarity(w1: str, w2: str):
         return SequenceMatcher(None, w1, w2).ratio()
+
+
+class DBFormat:
+    def __init__(self, table_name: str, df: pd.DataFrame):
+        self.table_name = table_name
+        self.table = df
+
+    def get_formatted_table(self):
+        df = self.table
+
+        if self.table_name.lower().startswith('bilanz'):
+            df = df.assign(date=None,
+                           position=None)
+            df.date = df.name.str.extract('([\d]{2}.[\d]{2}.[\d]{4})')
+            df.name = df.name.str.extract('[\d]{2}.[\d]{2}.[\d]{4}_(.*)')
+            df.name = df.name.str.lstrip('_')
+            # filter by aktiva/passiva indices
+            aktiva_index = df.name.str.contains('Aktiva')
+            passiva_index = df.name.str.contains('Passiva')
+            # set new position column entries by loc filter
+            df.loc[aktiva_index, 'position'] = 'Aktiva'
+            df.loc[aktiva_index, 'name'] = df.name.str.lstrip('Aktiva')
+            df.loc[passiva_index, 'position'] = 'Passiva'
+            df.loc[passiva_index, 'name'] = df.name.str.lstrip('Passiva')
+            df.name = df.name.str.lstrip('_')
+
+            df.dropna(subset={'position'},
+                      inplace=True)
+
+        elif self.table_name.lower().startswith('guv'):
+            df = df.assign(year=None,
+                           is_revenue=False)
+            df.year = df.name.str.extract('([\d{4}]+)')
+            df.name = df.name.str.extract('\d{4}_(.*)')
+            df.name = df.name.str.lstrip('_')
+            df.name = df.name.str.capitalize()
+
+            for k, group in df.groupby(by=['FN', 'year']):
+                revenue_hits = group.name.str.lower().str.contains('umsatz')
+
+                if revenue_hits.any():
+                    revenue_index = group[revenue_hits].iloc[0].name
+                else:
+                    revenue_index = group.value.iloc[:25].idxmax()
+
+                df.at[revenue_index, 'is_revenue'] = True
+
+        elif self.table_name.lower().startswith('search'):
+            df = df.assign(code=None)
+
+            if df.type.str.contains('OENACE.2008').any():
+                oenace_index = df.type == 'OENACE.2008'
+                split_content = df.loc[oenace_index, 'value'].str.split('(')
+                codes = split_content.apply(lambda x: x[-1]).str.rstrip(')')
+                values = split_content.apply(lambda x: '('.join(part for part in x[:-1]))
+
+                df.loc[oenace_index, 'code'] = codes
+                df.loc[oenace_index, 'value'] = values
+
+        return df
