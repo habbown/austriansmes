@@ -4,6 +4,7 @@ import pyodbc
 import re
 import time
 from sqlalchemy.exc import ProgrammingError
+from sqlalchemy import types
 
 import bs4
 import numpy as np
@@ -630,21 +631,26 @@ class Crawler:
 
 
 class DBTable:
+    _CHUNKSIZE = 1e4
+
     def __init__(self):
+        self.connection = None
+        self.sql_connection = None
+        self.db_cursor = None
         self.open_connection()
 
     def push_from_source(self, source: dict, to_file: bool = False):
         print('Pushing data to server...\n')
 
-        for table_name, data in source.items():
-            data_formatted = self.get_formatted(table_name=table_name,
+        for table_key, data in source.items():
+            data_formatted = self.get_formatted(table_name=table_key,
                                                 data=data)
-            self.update_database(table_name=table_name,
+            self.update_database(table_name=table_key,
                                  df_new=data_formatted)
 
             if to_file:
                 os.makedirs(OUTPUT_DIR, exist_ok=True)
-                data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, table_name + '.csv'),
+                data.to_csv(path_or_buf=os.path.join(OUTPUT_DIR, table_key + '.csv'),
                             encoding='utf-8')
 
         if 'BilanzData' in source:
@@ -665,14 +671,16 @@ class DBTable:
         df_bilanz_info.loc[df_bilanz_info._merge == 'left_only', 'shortened'] = True
 
         self.commit(table_name='BilanzInfo',
-                    data=df_bilanz_info[['FN', 'year', 'shortened']])
+                    df=df_bilanz_info[['FN', 'year', 'shortened']])
 
     def update_database(self, table_name: str, df_new: pd.DataFrame):
+        print(f'Processing table {table_name}...')
+
         try:
             original_table = self.get(table_name=table_name)
         except ProgrammingError:
             print(f'Table {table_name} is not yet present on server, pushing temp data directly...')
-            self.commit(table_name=table_name, data=df_new)
+            self.commit(table_name=table_name, df=df_new)
             return
 
         concat_table = pd.concat(objs=[original_table, df_new],
@@ -683,7 +691,7 @@ class DBTable:
                                  drop=True)
 
         self.commit(table_name=table_name,
-                    data=concat_table,
+                    df=concat_table,
                     how='replace')
         self.sql_connection.commit()
 
@@ -691,13 +699,15 @@ class DBTable:
         return pd.read_sql(table_name,
                            self.connection)
 
-    def commit(self, table_name: str, data: pd.DataFrame,
+    def commit(self, table_name: str, df: pd.DataFrame,
                how: str = 'append'):
-        data.to_sql(name=table_name,
-                    con=self.connection,
-                    if_exists=how,
-                    index=False,
-                    chunksize=5000)
+        dtype_mappings = DBTable.get_df_column_mappings(df=df)
+        df.to_sql(name=table_name,
+                  con=self.connection,
+                  if_exists=how,
+                  index=False,
+                  dtype=dtype_mappings,
+                  chunksize=self._CHUNKSIZE)
 
     @staticmethod
     def get_formatted(table_name: str, data: list):
@@ -763,6 +773,10 @@ class DBTable:
 
         return df_sampled_sorted.set_index(multi_index) if multi_index else df_sampled_sorted
 
+    @staticmethod
+    def get_df_column_mappings(df: pd.DataFrame):
+        return {k: types.VARCHAR(255) for k, v in df.dtypes.items() if v == 'object'}
+
     def close_connection(self):
         self.db_cursor.close()
         self.sql_connection.close()
@@ -772,14 +786,3 @@ class DBTable:
         self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
         self.db_cursor = self.sql_connection.cursor()
-
-    @property
-    def table_names(self):
-        self.db_cursor.execute('Show Tables')
-
-        return list(row[0] for row in self.db_cursor.fetchall())
-
-    def get_column_names(self, table_name: str):
-        sql_string = f"SELECT column_name FROM information_schema.columns WHERE table_name='{table_name}'"
-
-        return list(i[0] for i in self.db_cursor.execute(sql_string) if not i[0] == 'index')
