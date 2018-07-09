@@ -631,7 +631,7 @@ class Crawler:
 
 
 class DBTable:
-    _CHUNKSIZE = 1e4
+    _CHUNKSIZE = int(1e4)
 
     def __init__(self):
         self.connection = None
@@ -775,7 +775,7 @@ class DBTable:
 
     @staticmethod
     def get_df_column_mappings(df: pd.DataFrame):
-        return {k: types.VARCHAR(255) for k, v in df.dtypes.items() if v == 'object'}
+        return {k: types.VARCHAR(df[k].str.len().max()) for k, v in df.dtypes.items() if v == 'object'}
 
     def close_connection(self):
         self.db_cursor.close()
@@ -786,3 +786,7 @@ class DBTable:
         self.connection = create_engine(ENGINE_ADDRESS, encoding='utf-8').connect()
         self.sql_connection = pyodbc.connect(SQL_CONNECTION_STR)
         self.db_cursor = self.sql_connection.cursor()
+
+    @staticmethod
+    def bulk_push_data(df: pd.DataFrame, model):
+        model.objects.bulk_create(model(**values) for values in df.to_dict('records'))
