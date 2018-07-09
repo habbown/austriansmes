@@ -1,4 +1,7 @@
 # data structures
+django
+django-admin
+mysqlclient
 pandas
 numpy
 
@@ -16,5 +19,4 @@ tqdm
 # nlp
 pyjarowinkler
 nltk
-
 xlrd

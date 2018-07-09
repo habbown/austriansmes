@@ -644,6 +644,7 @@ class DBTable:
                                                 data=data)
             self.update_database(table_name=table_name,
                                  df_new=data_formatted)
+            print(f'Processed table {table_name}...')
 
             if to_file:
                 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -691,8 +692,8 @@ class DBTable:
         self.sql_connection.commit()
 
     def get(self, table_name: str):
-        return pd.read_sql(table_name,
-                           self.connection)
+        return pd.read_sql(sql=table_name,
+                           con=self.connection)
 
     def commit(self, table_name: str, data: pd.DataFrame,
                how: str = 'append'):
